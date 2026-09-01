@@ -45,6 +45,21 @@ Engine work required (the only real gap — everything today is polygons or poin
 3. Pipeline: an `overpass` step — per-city cached queries (be polite: one request per
    city per layer), merge segments by name/ref, emit `kind: "line"` packs.
 
+## The data horizon (assessed 2026-09-01: political/admin data is essentially exhausted)
+
+- **Physical geography** — rivers, lakes, mountain ranges/peaks, seas, deserts, islands
+  via Natural Earth physical (bulk, same pipeline; engine already handles line/polygon/
+  point). The biggest remaining content win — last core Seterra category missing.
+- **Flags** — public-domain flag image sets keyed by ISO codes we already carry; the quiz
+  is the same click mechanic with an image prompt instead of a name. Small engine change.
+- **Historical borders** — CShapes 2.0 (country borders back to ~1886) for "Europe in
+  1914"-style quizzes. Niche; as-we-go.
+- **Heavier GIS (rasters)** — elevation/terrain shading behind physical quizzes,
+  population-density surfaces (Kontur/WorldPop) for auto "top N" filters anywhere, land
+  cover. Unlocks presentation and computation, not new quiz content; defer until wanted.
+- **Verdict** — after physical geo + flags, the highest-value work is gameplay (spaced
+  repetition above all), not more data.
+
 ## City-view layer ideas (all OSM/Overpass unless noted; same machinery as roads/transit)
 
 - **Transit stations as points** — "stations of the Red Line" (from the same route
