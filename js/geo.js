@@ -96,8 +96,20 @@
    * SVG path `d` and point shapes carry planar {x, y}.
    */
   function buildScene(features, context, width, opts) {
-    const all = [...features, ...(context || [])];
-    const cut = lonCut(all);
+    // the antimeridian cut comes from the quiz features alone — context can span
+    // the globe (e.g. countries behind a US map) and would erase the gap
+    const cut = lonCut(features);
+    // drop context shapes the cut meridian passes through (they'd smear across the map)
+    context = (context || []).filter((f) => {
+      let minLon = Infinity, maxLon = -Infinity;
+      eachPart(f.geometry, (part) => {
+        for (const c of part) {
+          if (c[0] < minLon) minLon = c[0];
+          if (c[0] > maxLon) maxLon = c[0];
+        }
+      });
+      return cut(minLon) < cut(maxLon);
+    });
     const fit = opts?.bounds;
 
     let b;

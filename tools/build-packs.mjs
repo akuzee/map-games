@@ -392,10 +392,13 @@ function emit() {
       const countryName =
         a0.features.find((f) => f.properties.ADM0_A3 === a3)?.properties.NAME_EN;
       if (!countryName) continue;
+      const a0Cache = boxCache('a0', () =>
+        makeBoxCache(a0.features, (f) => f.properties.ADM0_A3));
+      const context = pickContext(a0Cache, featsBbox(feats, 0.2), a3);
       index.packs['admin1/' + a3] = {
         kind: 'polygon', level: 'admin1', label: 'States/provinces of ' + countryName,
         country: a3,
-        ...writePack('admin1/' + a3 + '.json', { kind: 'polygon', features: feats }),
+        ...writePack('admin1/' + a3 + '.json', { kind: 'polygon', features: feats, context }),
       };
       countries.push({ a3, name: countryName, count: feats.length });
     }
@@ -446,10 +449,12 @@ function emit() {
     }
     for (const [st, feats] of Object.entries(byState)) {
       feats.sort((x, y) => x.name.localeCompare(y.name));
+      const context = admin1ForBbox(featsBbox(feats, 0.15), stateNames[st]);
       index.packs[packPrefix + '/' + st] = {
         kind: 'polygon', level: key, label: labelPrefix + ' — ' + stateNames[st],
         state: st,
-        ...writePack(packPrefix + '/' + st + '.json', { kind: 'polygon', features: feats }),
+        ...writePack(packPrefix + '/' + st + '.json',
+          { kind: 'polygon', features: feats, context }),
       };
     }
   }
@@ -508,10 +513,13 @@ function emit() {
         }))
         .sort((x, y) => x.name.localeCompare(y.name));
       if (feats.length < 3) continue;
+      const a0Cache = boxCache('a0', () =>
+        makeBoxCache(a0.features, (f) => f.properties.ADM0_A3));
+      const context = pickContext(a0Cache, featsBbox(feats, 0.2), a3);
       index.packs['adm2/' + a3] = {
         kind: 'polygon', level: 'adm2', label: 'Districts of ' + nameByA3[a3] + ' (ADM2)',
         country: a3,
-        ...writePack('adm2/' + a3 + '.json', { kind: 'polygon', features: feats }),
+        ...writePack('adm2/' + a3 + '.json', { kind: 'polygon', features: feats, context }),
       };
       menu.push({ a3, name: nameByA3[a3], count: feats.length });
     }
@@ -550,9 +558,14 @@ function emit() {
       const m = cityMeta[slug];
       const label = (m?.name || slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())) +
         (m?.state ? ', ' + m.state : m?.country ? ', ' + m.country : '');
+      // backdrop: US counties where they exist, states/provinces elsewhere
+      const bb = featsBbox(feats, 0.35);
+      let context = countiesForBbox(bb);
+      if (!context.length) context = admin1ForBbox(bb);
       index.packs['neighborhoods/' + slug] = {
         kind: 'polygon', level: 'neighborhood', label: 'Neighborhoods — ' + label,
-        ...writePack('neighborhoods/' + slug + '.json', { kind: 'polygon', features: feats }),
+        ...writePack('neighborhoods/' + slug + '.json',
+          { kind: 'polygon', features: feats, context }),
       };
       menu.push({ slug, label, count: feats.length });
     }
@@ -621,29 +634,93 @@ function assembleRings(segs) {
   return rings;
 }
 
-// land backdrop for city-scale quizzes: counties overlapping the city's box
-let countyBoxCache = null;
-function cityContext(city) {
-  if (!countyBoxCache) {
-    countyBoxCache = readGJ('county').features.filter((f) => f.geometry).map((f) => {
-      let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-      const scan = (c) => {
-        if (typeof c[0] === 'number') {
-          if (c[0] < minLon) minLon = c[0];
-          if (c[0] > maxLon) maxLon = c[0];
-          if (c[1] < minLat) minLat = c[1];
-          if (c[1] > maxLat) maxLat = c[1];
-        } else c.forEach(scan);
-      };
-      scan(f.geometry.coordinates);
-      return { minLon, maxLon, minLat, maxLat, geometry: f.geometry };
-    });
+// ---------- surrounding-geography helpers (muted backdrop under every quiz) ----------
+function geomBbox(geometry) {
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  const scan = (c) => {
+    if (typeof c[0] === 'number') {
+      if (c[0] < minLon) minLon = c[0];
+      if (c[0] > maxLon) maxLon = c[0];
+      if (c[1] < minLat) minLat = c[1];
+      if (c[1] > maxLat) maxLat = c[1];
+    } else c.forEach(scan);
+  };
+  scan(geometry.coordinates);
+  return { minLon, maxLon, minLat, maxLat };
+}
+
+// same largest-empty-gap antimeridian cut the renderer uses (see js/geo.js)
+function lonGapCut(bboxes) {
+  const occupied = new Array(360).fill(false);
+  for (const b of bboxes) {
+    for (let l = Math.floor(b.minLon); l <= Math.ceil(b.maxLon); l++) {
+      occupied[((l % 360) + 540) % 360] = true;
+    }
   }
-  const rl = city.r, rlon = city.r / Math.cos(city.lat * Math.PI / 180);
-  return countyBoxCache
-    .filter((c) => c.minLon < city.lon + rlon && c.maxLon > city.lon - rlon &&
-      c.minLat < city.lat + rl && c.maxLat > city.lat - rl)
+  let bestStart = 0, bestLen = 0, runStart = -1;
+  for (let i = 0; i < 720; i++) {
+    if (!occupied[i % 360]) {
+      if (runStart < 0) runStart = i;
+      if (i - runStart + 1 > bestLen && runStart < 360) {
+        bestLen = i - runStart + 1;
+        bestStart = runStart;
+      }
+    } else runStart = -1;
+  }
+  if (bestLen < 30) return (lon) => lon;
+  const g = ((bestStart + bestLen / 2) % 360) - 180;
+  return (lon) => ((((lon - g) % 360) + 360) % 360) - 180;
+}
+
+// bbox (with padding) in cut-space, so antimeridian packs (Alaska!) stay contiguous
+function featsBbox(feats, padFrac) {
+  const boxes = feats.map((f) => f.geometry ? geomBbox(f.geometry)
+    : { minLon: f.lon, maxLon: f.lon, minLat: f.lat, maxLat: f.lat });
+  const cut = lonGapCut(boxes);
+  let b = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
+  for (const g of boxes) {
+    b.minLon = Math.min(b.minLon, cut(g.minLon), cut(g.maxLon));
+    b.maxLon = Math.max(b.maxLon, cut(g.minLon), cut(g.maxLon));
+    b.minLat = Math.min(b.minLat, g.minLat);
+    b.maxLat = Math.max(b.maxLat, g.maxLat);
+  }
+  const padLon = (b.maxLon - b.minLon) * padFrac, padLat = (b.maxLat - b.minLat) * padFrac;
+  return { minLon: b.minLon - padLon, maxLon: b.maxLon + padLon,
+    minLat: b.minLat - padLat, maxLat: b.maxLat + padLat, cut };
+}
+
+function makeBoxCache(features, nameOf) {
+  return features.filter((f) => f.geometry).map((f) => ({
+    ...geomBbox(f.geometry), name: nameOf(f), geometry: f.geometry,
+  }));
+}
+const boxCaches = {};
+function boxCache(key, build) {
+  return boxCaches[key] ||= build();
+}
+function pickContext(cache, bbox, excludeName) {
+  const cut = bbox.cut || ((lon) => lon);
+  return cache
+    .filter((c) => {
+      if (c.name === excludeName) return false;
+      const a = cut(c.minLon), b = cut(c.maxLon);
+      if (a >= b) return false; // straddles the cut meridian — would smear
+      return a < bbox.maxLon && b > bbox.minLon &&
+        c.minLat < bbox.maxLat && c.maxLat > bbox.minLat;
+    })
     .map((c) => ({ geometry: c.geometry }));
+}
+
+const countiesForBbox = (bbox) => pickContext(
+  boxCache('county', () => makeBoxCache(readGJ('county').features, () => null)), bbox);
+const admin1ForBbox = (bbox, excludeName) => pickContext(
+  boxCache('admin1', () => makeBoxCache(readGJ('admin1').features,
+    (f) => f.properties.name)), bbox, excludeName);
+
+function cityContext(city) {
+  const rl = city.r, rlon = city.r / Math.cos(city.lat * Math.PI / 180);
+  return countiesForBbox({ minLon: city.lon - rlon, maxLon: city.lon + rlon,
+    minLat: city.lat - rl, maxLat: city.lat + rl });
 }
 
 function emitOsm(index) {
@@ -787,11 +864,12 @@ function emitCivic(index) {
     for (const [st, feats] of Object.entries(byState)) {
       if (feats.length < 3) continue;
       feats.sort((x, y) => x.name.localeCompare(y.name));
+      const context = admin1ForBbox(featsBbox(feats, 0.15), stNames[st]);
       index.packs['us-school-districts/' + st] = {
         kind: 'polygon', level: 'district',
         label: 'School districts — ' + (stNames[st] || st), state: st,
         ...writePack('us-school-districts/' + st + '.json',
-          { kind: 'polygon', features: feats }),
+          { kind: 'polygon', features: feats, context }),
       };
       menu.push(st);
     }

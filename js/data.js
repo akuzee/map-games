@@ -102,6 +102,13 @@
         ' target(s) — need at least 2. Loosen the filters.');
     }
     const isPoint = pack.kind === 'point';
+    // a scoped polygon quiz keeps the rest of its pack visible as muted backdrop
+    // (Eastern MA shows the rest of the state; Europe shows its crop's neighbors)
+    let context = pack.context || [];
+    if (!isPoint && config.scope && scoped.length < pack.features.length) {
+      const inScope = new Set(scoped.map((f) => f.id));
+      context = context.concat(pack.features.filter((f) => !inScope.has(f.id)));
+    }
     return {
       title: config.title,
       subtitle: config.subtitle ||
@@ -113,7 +120,8 @@
       targetIds: targets.map((f) => f.id),
       // packs may carry their own backdrop (city quizzes: surrounding counties);
       // otherwise point quizzes get country/admin-1 outlines
-      context: pack.context || (isPoint ? await resolveContext(config, index) : []),
+      context: context.length ? context
+        : (isPoint ? await resolveContext(config, index) : []),
       bounds: config.bounds,
     };
   }
