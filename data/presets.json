@@ -1,0 +1,107 @@
+[
+  {
+    "id": "world-countries",
+    "title": "Countries of the World",
+    "pack": "world-countries",
+    "select": { "mode": "independent" }
+  },
+  {
+    "id": "europe-countries",
+    "title": "Countries of Europe",
+    "pack": "world-countries",
+    "scope": { "continent": "Europe" },
+    "select": { "mode": "independent" },
+    "bounds": [-25, 34, 45, 72]
+  },
+  {
+    "id": "africa-countries",
+    "title": "Countries of Africa",
+    "pack": "world-countries",
+    "scope": { "continent": "Africa" },
+    "select": { "mode": "independent" }
+  },
+  {
+    "id": "nato",
+    "title": "NATO Members",
+    "pack": "world-countries",
+    "select": { "mode": "group", "group": "NATO" }
+  },
+  {
+    "id": "us-states",
+    "title": "US States",
+    "pack": "admin1/USA",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "japan-prefectures",
+    "title": "Prefectures of Japan",
+    "pack": "admin1/JPN",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "ma-counties",
+    "title": "Counties of Massachusetts",
+    "pack": "us-counties/MA",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "eastern-ma-townships",
+    "title": "Eastern Massachusetts: Major Townships",
+    "subtitle": "The 33 municipalities with 40,000+ residents",
+    "pack": "us-townships/MA",
+    "scope": { "counties": ["Barnstable", "Bristol", "Dukes", "Essex", "Middlesex", "Nantucket", "Norfolk", "Plymouth", "Suffolk"] },
+    "select": { "mode": "manual", "names": ["Boston", "Cambridge", "Lowell", "Brockton", "Quincy", "Lynn", "New Bedford", "Fall River", "Newton", "Lawrence", "Somerville", "Framingham", "Haverhill", "Malden", "Waltham", "Brookline", "Revere", "Plymouth", "Medford", "Taunton", "Weymouth", "Peabody", "Methuen", "Everett", "Barnstable", "Attleboro", "Arlington", "Salem", "Beverly", "Billerica", "Marlborough", "Chelsea", "Woburn"] }
+  },
+  {
+    "id": "boston-transit",
+    "title": "Boston: T Lines",
+    "pack": "osm-transit-lines/boston",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "boston-roads",
+    "title": "Boston: Major Roads",
+    "pack": "osm-major-roads/boston",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "nyc-transit",
+    "title": "New York: Subway Lines",
+    "pack": "osm-transit-lines/new-york",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "boston-zips",
+    "title": "Boston: ZIP Codes",
+    "pack": "zips/boston",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "boston-neighborhoods",
+    "title": "Neighborhoods of Boston",
+    "pack": "neighborhoods/boston",
+    "select": { "mode": "all" }
+  },
+  {
+    "id": "france-cities",
+    "title": "France: 20 Biggest Cities",
+    "pack": "geocities/FRA",
+    "scope": { "country": "FRA" },
+    "select": { "mode": "topPop", "n": 20 }
+  },
+  {
+    "id": "china-cities",
+    "title": "China: 20 Biggest Cities",
+    "pack": "cities",
+    "scope": { "country": "CHN" },
+    "select": { "mode": "topPop", "n": 20 }
+  },
+  {
+    "id": "europe-capitals",
+    "title": "Capitals of Europe",
+    "pack": "cities",
+    "scope": { "continent": "Europe" },
+    "select": { "mode": "capitals" },
+    "bounds": [-25, 34, 45, 72]
+  }
+]

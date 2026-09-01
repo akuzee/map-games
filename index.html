@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map Games</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;600&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header>
+    <div class="masthead">
+      <button id="btn-home" class="linklike">
+        <h1>Map Games</h1>
+      </button>
+      <p class="app-tagline">Blank-map quizzes for any region</p>
+    </div>
+    <div class="play-hud">
+      <span class="hud-quiz">
+        <span id="quiz-title"></span>
+        <span id="quiz-subtitle"></span>
+      </span>
+      <div class="prompt" id="prompt">
+        <span class="lead">Click on</span>
+        <strong id="prompt-name"></strong>
+        <span class="tries" id="tries-left"></span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="label">Progress</span><span class="value" id="stat-progress">–</span></div>
+        <div class="stat"><span class="label">Score</span><span class="value" id="stat-score">100%</span></div>
+        <div class="stat"><span class="label">Time</span><span class="value" id="stat-timer">00:00</span></div>
+      </div>
+      <button id="btn-exit-play" class="ghost-btn">Exit</button>
+    </div>
+  </header>
+
+  <div id="error-bar" hidden></div>
+
+  <section id="view-home" hidden>
+    <div class="hero">
+      <h2>Learn the world by clicking it.</h2>
+      <p>Blank-map quizzes at every scale — from continents to your commute.
+         Three guesses per prompt, every miss names what you clicked,
+         and you can retry just the ones you got wrong.</p>
+      <button id="btn-new-quiz" class="primary-btn">Create a quiz</button>
+    </div>
+
+    <div class="scales">
+      <article class="scale-card">
+        <svg viewBox="0 0 100 64" aria-hidden="true">
+          <ellipse cx="50" cy="32" rx="30" ry="28" class="g-water"/>
+          <path d="M35 18 Q46 12 52 19 Q57 25 49 30 Q39 33 34 27 Z" class="g-land"/>
+          <path d="M52 36 Q62 32 66 40 Q66 49 56 50 Q49 45 52 36 Z" class="g-accent"/>
+          <path d="M50 4 v56 M22 24 Q50 16 78 24 M22 42 Q50 50 78 42" class="g-grid"/>
+        </svg>
+        <h3>The world</h3>
+        <p>Countries and capitals, whole or by continent — or just a set like NATO.</p>
+        <div class="chips">
+          <button class="play-chip" data-play="world-countries">All countries</button>
+          <button class="play-chip" data-play="nato">NATO</button>
+          <button class="play-chip" data-play="europe-capitals">Europe's capitals</button>
+        </div>
+      </article>
+
+      <article class="scale-card">
+        <svg viewBox="0 0 100 64" aria-hidden="true">
+          <path d="M16 38 Q12 20 34 13 Q58 5 78 15 Q92 24 85 42 Q76 57 50 56 Q22 56 16 38 Z" class="g-land"/>
+          <path d="M78 15 Q64 22 60 30 Q52 40 54 55 Q76 54 85 42 Q92 24 78 15 Z" class="g-accent"/>
+          <path d="M34 13 Q42 28 36 42 Q32 50 36 55" class="g-grid"/>
+        </svg>
+        <h3>Any country</h3>
+        <p>States, provinces, and districts of 200 countries — plus every city over 500 people.</p>
+        <div class="chips">
+          <button class="play-chip" data-play="japan-prefectures">Japan's prefectures</button>
+          <button class="play-chip" data-play="china-cities">China's big cities</button>
+        </div>
+      </article>
+
+      <article class="scale-card">
+        <svg viewBox="0 0 100 64" aria-hidden="true">
+          <path d="M16 44 Q14 22 34 16 Q60 8 80 20 Q90 30 84 44 Q76 56 52 54 Q26 54 16 44 Z" class="g-land"/>
+          <circle cx="38" cy="30" r="5" class="g-pin"/>
+          <circle cx="60" cy="24" r="5" class="g-pin"/>
+          <circle cx="66" cy="42" r="5" class="g-pin g-pin-accent"/>
+        </svg>
+        <h3>Across the US</h3>
+        <p>Counties, townships, cities and towns, ZIP codes, school districts — for every state.</p>
+        <div class="chips">
+          <button class="play-chip" data-play="eastern-ma-townships">Eastern Mass townships</button>
+          <button class="play-chip" data-play="boston-zips">Boston ZIPs</button>
+        </div>
+      </article>
+
+      <article class="scale-card">
+        <svg viewBox="0 0 100 64" aria-hidden="true">
+          <path d="M10 50 Q34 40 50 32 Q68 22 90 14" class="g-line g-line-accent"/>
+          <path d="M14 14 Q36 24 52 36 Q66 46 88 52" class="g-line g-line-ochre"/>
+          <path d="M50 6 Q48 24 50 32 Q54 48 52 60" class="g-line"/>
+          <circle cx="50" cy="32" r="4.5" class="g-node"/>
+        </svg>
+        <h3>Your city</h3>
+        <p>Transit lines and stations, major roads, rivers, parks, landmarks, neighborhoods.</p>
+        <div class="chips">
+          <button class="play-chip" data-play="boston-transit">Boston's T</button>
+          <button class="play-chip" data-play="nyc-transit">NYC subway</button>
+          <button class="play-chip" data-play="boston-neighborhoods">Boston hoods</button>
+        </div>
+      </article>
+    </div>
+
+    <div class="home-head">
+      <h2>Library</h2>
+    </div>
+    <div id="quiz-grid"></div>
+  </section>
+
+  <section id="view-builder" hidden>
+    <h2>Create a quiz</h2>
+    <form class="builder" onsubmit="return false">
+      <label>What to quiz
+        <select id="b-dataset"></select>
+      </label>
+      <label><span id="b-scope-label">Region</span>
+        <select id="b-scope"></select>
+      </label>
+      <label>Which targets
+        <select id="b-mode"></select>
+      </label>
+      <label id="b-n-wrap" hidden>How many (N)
+        <input id="b-n" type="number" min="2" max="500" value="20">
+      </label>
+      <label id="b-min-wrap" hidden>Minimum population
+        <input id="b-min" type="number" min="0" step="10000" value="100000">
+      </label>
+      <label id="b-group-wrap" hidden>Group
+        <select id="b-group"></select>
+      </label>
+      <div id="b-manual-wrap" hidden>
+        <input id="b-manual-search" type="search" placeholder="Filter the list…">
+        <div id="b-manual-list"></div>
+      </div>
+      <label>Title
+        <input id="b-title" type="text" placeholder="">
+      </label>
+      <p id="b-preview" class="builder-preview"></p>
+      <div class="builder-actions">
+        <button id="b-play" class="primary-btn">Play now</button>
+        <button id="b-save" class="ghost-btn">Save to library</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="view-play" hidden>
+    <div id="map" aria-label="Quiz map"></div>
+    <div id="wrong-label" role="status" hidden></div>
+
+    <div class="legend" aria-hidden="true">
+      <span><i class="k0"></i>1st try</span>
+      <span><i class="k1"></i>2nd</span>
+      <span><i class="k2"></i>3rd</span>
+      <span><i class="k3"></i>Revealed</span>
+    </div>
+
+    <div class="zoom-controls">
+      <button id="btn-zoom-in" aria-label="Zoom in">+</button>
+      <button id="btn-zoom-out" aria-label="Zoom out">−</button>
+      <button id="btn-zoom-reset" aria-label="Reset view">⌂</button>
+    </div>
+
+    <div id="end-panel" hidden>
+      <div class="end-card">
+        <h2>Round complete</h2>
+        <div class="big-score" id="end-score">–</div>
+        <p class="end-meta"><span id="end-breakdown"></span><br>Time: <span id="end-time"></span></p>
+        <div id="missed-wrap" hidden>
+          <h3>Revealed</h3>
+          <div id="missed-list"></div>
+        </div>
+        <div class="end-actions">
+          <button id="btn-retry-missed" hidden></button>
+          <button id="btn-restart">Play again — everything</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/geo.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
