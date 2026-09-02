@@ -827,7 +827,8 @@ function emitOsm(index) {
       }
       for (const f of feats) delete f.len;
       feats.sort((a, b) => a.name.localeCompare(b.name));
-      if (feats.length < 5) continue;
+      // small rail systems (3 lines) still make a real quiz; other layers need more
+      if (feats.length < (layer === 'transit-lines' ? 3 : 5)) continue;
 
       const packId = 'osm-' + layer + '/' + city.slug;
       index.packs[packId] = {
