@@ -293,6 +293,92 @@ async function osm() {
   }
 }
 
+// -------------------------------------------- basemap (orientation underlay per city)
+// One combined query per city — water, parks, and major roads — drawn *under* the
+// quiz so a bare neighborhood map has a river and a highway to navigate by.
+// Note: oceans/bays need no query; the map background is already water, with land
+// polygons painted on top. This fetches inland water only.
+const BASEMAP_QUERY = (b) => `(
+  way["natural"="water"](${b});
+  relation["natural"="water"](${b});
+  way["waterway"~"^(river|canal)$"](${b});
+  way["leisure"="park"](${b});
+  relation["leisure"="park"](${b});
+  way["highway"~"^(motorway|trunk|primary)$"](${b});
+);out geom;`;
+
+function hoodCityBoxes() {
+  const dir = path.join(CACHE, 'hoods-s');
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.geojson'))) {
+    let gj;
+    try { gj = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')); }
+    catch { continue; }
+    const feats = (gj.features || []).filter((f) => f.geometry);
+    if (feats.length < 5) continue;
+    const b = featsBbox(feats, 0.12);
+    // skip non-city entries in the dataset (continents, whole states, cantons)
+    if (b.maxLon - b.minLon > 1.6 || b.maxLat - b.minLat > 1.6) continue;
+    out.push({ slug: file.replace('.geojson', ''), bbox: b });
+  }
+  return out;
+}
+
+async function basemaps() {
+  const dir = path.join(CACHE, 'basemap');
+  fs.mkdirSync(dir, { recursive: true });
+  // cities.json cities already have water/parks/roads from the `osm` step —
+  // emit reuses those rather than asking Overpass for them twice
+  const covered = new Set(CITIES.map((c) => c.slug));
+  const targets = hoodCityBoxes().filter((t) => !covered.has(t.slug));
+  // biggest/most-played first, so the underlay is usable long before the tail
+  // of the list finishes on a server that rate-limits us
+  const priority = ['grand-rapids', 'milwaukee', 'cincinnati', 'columbus', 'charlotte',
+    'indianapolis', 'oklahoma-city', 'louisville', 'memphis', 'richmond', 'buffalo',
+    'rochester', 'hartford', 'providence', 'albany', 'syracuse', 'toronto', 'montreal',
+    'vancouver', 'london', 'paris', 'berlin', 'madrid', 'rome', 'amsterdam', 'tokyo'];
+  targets.sort((a, b) => {
+    const ia = priority.indexOf(a.slug), ib = priority.indexOf(b.slug);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
+  console.log('basemaps:', targets.length, 'city areas to fetch');
+  let endpoint = 0, done = 0;
+  for (const t of targets) {
+    const file = path.join(dir, t.slug + '.json');
+    if (fs.existsSync(file)) continue;
+    const bbox = [t.bbox.minLat, t.bbox.minLon, t.bbox.maxLat, t.bbox.maxLon]
+      .map((n) => n.toFixed(3)).join(',');
+    const query = '[out:json][timeout:180];' + BASEMAP_QUERY(bbox);
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const res = await fetch(OVERPASS[endpoint % OVERPASS.length], {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(query),
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'map-games-pipeline/1.0 (open-source geography quiz)',
+          },
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        fs.writeFileSync(file, JSON.stringify(json));
+        done++;
+        console.log('basemaps:', t.slug, '—', json.elements.length, 'elements',
+          '(' + done + ')');
+        break;
+      } catch (err) {
+        endpoint++;
+        console.log('basemaps: retry', t.slug, '-', err.message);
+        if (attempt === 5) console.log('basemaps: GIVING UP on', t.slug);
+        else await sleep(20000 * (attempt + 1));
+      }
+    }
+    await sleep(2500);
+  }
+  console.log('basemaps: done —', done, 'fetched');
+}
+
 // -------------------------------------------- civic (ZIP codes, school districts)
 const CIVIC_SOURCES = {
   zcta: 'https://www2.census.gov/geo/tiger/GENZ2020/shp/cb_2020_us_zcta520_500k.zip',
@@ -919,5 +1005,6 @@ if (step === 'geonames' || step === 'all') geonames();
 if (step === 'adm2' || step === 'all') await adm2();
 if (step === 'hoods' || step === 'all') hoods();
 if (step === 'osm' || step === 'all') await osm();
+if (step === 'basemaps' || step === 'all') await basemaps();
 if (step === 'civic' || step === 'all') civic();
 if (step === 'emit' || step === 'all') emit();

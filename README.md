@@ -8,10 +8,24 @@ and play. Ships with 10 presets and an in-app builder; custom quizzes save to th
 ## Run
 
 ```sh
-node tools/serve.mjs        # → http://localhost:8017
+node tools/fetch-packs.mjs   # download prebuilt quiz data (~66MB)
+node tools/serve.mjs         # → http://localhost:8017
 ```
 
-(A server is required because quiz data loads via fetch; any static server works.)
+Node 18+; no dependencies to install. A server is required because quiz data loads
+via fetch; any static server works.
+
+Only want part of it? The data ships in tiers:
+
+```sh
+node tools/fetch-packs.mjs --world        # countries, states/provinces, districts (16MB)
+node tools/fetch-packs.mjs --us           # US counties, townships, places (14MB)
+node tools/fetch-packs.mjs --city boston  # one city's neighborhoods/transit/roads (<1MB)
+node tools/fetch-packs.mjs --list         # everything on offer
+```
+
+You can also build every pack from the original sources instead — see [DATA.md](DATA.md) —
+but that takes hours and leans on volunteer-run servers, so prefer the download.
 
 ## Play
 

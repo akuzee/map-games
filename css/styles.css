@@ -442,7 +442,9 @@ circle.town {
 .hitline.town--inactive { pointer-events: none; }
 .town--target { fill: var(--land-active); cursor: pointer; transition: fill 0.15s; }
 .town--target:hover { fill: var(--land-hover); }
-.town--inactive { fill: var(--land-bg); cursor: default; pointer-events: none; }
+/* sitting out this round: not clickable (the game loop ignores it) but still
+   hoverable, so you can review names you already know */
+.town--inactive { fill: var(--land-bg); cursor: default; }
 
 .town--solved, .town--missed { cursor: default; }
 .town--solved-0:not(.town--line) { fill: var(--solved-0) !important; }
@@ -478,6 +480,23 @@ circle.town {
   white-space: nowrap;
   z-index: 2;
 }
+/* instant name-on-hover for anything already known (see engine.js) */
+#hover-label {
+  position: absolute;
+  transform: translate(-50%, -175%);
+  padding: 0.22rem 0.6rem;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 0.3rem;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
 .wrong-label--show { animation: wrong-label-fade 1.6s forwards; }
 @keyframes wrong-label-fade {
   0% { opacity: 0; transform: translate(-50%, -110%); }

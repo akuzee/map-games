@@ -37,7 +37,8 @@
       map: $('map'), prompt: $('prompt'), promptName: $('prompt-name'),
       triesLeft: $('tries-left'), progress: $('stat-progress'),
       score: $('stat-score'), timer: $('stat-timer'),
-      wrongLabel: $('wrong-label'), endPanel: $('end-panel'),
+      wrongLabel: $('wrong-label'), hoverLabel: $('hover-label'),
+      endPanel: $('end-panel'),
       endScore: $('end-score'), endTime: $('end-time'),
       endBreakdown: $('end-breakdown'), missedWrap: $('missed-wrap'),
       missedList: $('missed-list'), btnRestart: $('btn-restart'),
@@ -110,9 +111,7 @@
         }
       } else {
         node.classList.add('town', 'town--bg');
-        const tip = document.createElementNS(SVG_NS, 'title');
-        tip.textContent = s.name + ' — not in this quiz';
-        node.appendChild(tip);
+        node.dataset.reveal = s.name;
       }
       layer.appendChild(node);
     }
@@ -159,10 +158,10 @@
     }, { passive: false });
     svg.addEventListener('pointerdown', (ev) => {
       drag = { sx: ev.clientX, sy: ev.clientY, view0: { ...view }, moved: false };
-      svg.setPointerCapture(ev.pointerId);
+      try { svg.setPointerCapture(ev.pointerId); } catch { /* no active pointer */ }
     });
     svg.addEventListener('pointermove', (ev) => {
-      if (!drag) return;
+      if (!drag) { updateHoverLabel(ev); return; }
       const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
       if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
       if (!drag.moved) return;
@@ -178,6 +177,26 @@
       if (!wasDrag) handleClick(ev);
     });
     svg.addEventListener('pointercancel', () => { drag = null; });
+    svg.addEventListener('pointerleave', () => { el.hoverLabel.hidden = true; });
+  }
+
+  /*
+   * Naming what you already know, on hover: solved and revealed targets, shapes
+   * sitting out this round, and background shapes all carry a data-reveal name.
+   * Targets still in play don't — hovering can't leak an answer.
+   */
+  function updateHoverLabel(ev) {
+    const hit = document.elementFromPoint(ev.clientX, ev.clientY);
+    const name = hit?.dataset?.reveal;
+    const lbl = el.hoverLabel;
+    if (!name) { lbl.hidden = true; return; }
+    if (lbl.textContent !== name) lbl.textContent = name;
+    lbl.hidden = false;
+    const main = lbl.parentElement.getBoundingClientRect();
+    const w = lbl.offsetWidth;
+    lbl.style.left =
+      Math.min(Math.max(ev.clientX - main.left, w / 2 + 8), main.width - w / 2 - 8) + 'px';
+    lbl.style.top = Math.max(ev.clientY - main.top, 40) + 'px';
   }
 
   // ---------- game loop ----------
@@ -213,12 +232,11 @@
       shape.classList.remove('town--solved', 'town--solved-0', 'town--solved-1',
         'town--solved-2', 'town--missed', 'town--pulse', 'town--flash-wrong');
       shape.classList.toggle('town--inactive', !inRound.has(id));
-      shape.querySelector('title')?.remove();
       const hit = hitById.get(id);
-      if (hit) {
-        hit.classList.toggle('town--inactive', !inRound.has(id));
-        hit.querySelector('title')?.remove();
-      }
+      if (hit) hit.classList.toggle('town--inactive', !inRound.has(id));
+      // sitting out this round (already known) → still hoverable; in play → hidden
+      if (inRound.has(id)) delete (hit || shape).dataset.reveal;
+      else (hit || shape).dataset.reveal = nameById.get(id);
     }
     startedAt = Date.now();
     clearInterval(timerId);
@@ -235,11 +253,10 @@
       `${MAX_ATTEMPTS - attempts} ${MAX_ATTEMPTS - attempts === 1 ? 'try' : 'tries'} left`;
   }
 
+  // Solved/revealed shapes become hoverable (see hover handler); native <title>
+  // tooltips are too slow (~1s delay) for reviewing the map as you play.
   function addTip(shape, id) {
-    const tip = document.createElementNS(SVG_NS, 'title');
-    tip.textContent = nameById.get(id);
-    // for lines, hovers land on the fat hit path, so the tooltip lives there
-    (hitById.get(id) || shape).appendChild(tip);
+    (hitById.get(id) || shape).dataset.reveal = nameById.get(id);
   }
 
   function advance() {
@@ -352,6 +369,7 @@
       if (el) {
         el.endPanel.hidden = true;
         el.wrongLabel.hidden = true;
+        el.hoverLabel.hidden = true;
         el.map.replaceChildren();
       }
       quiz = null;

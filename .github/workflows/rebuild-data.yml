@@ -1,0 +1,53 @@
+name: Rebuild quiz data
+
+# The upstream sources (Census boundaries, Natural Earth, GeoNames) move on an
+# annual cadence at most, so this runs yearly — plus on demand from the Actions
+# tab. Running it more often would mostly just re-download the same bytes and
+# put avoidable load on the volunteer-run Overpass servers.
+on:
+  schedule:
+    - cron: '0 6 15 1 *' # 15 January, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (default: data-YYYY-MM-DD)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Sources are large and mostly static; a cache hit turns a multi-hour run
+      # into a short one and spares the upstream servers entirely.
+      - name: Cache source downloads
+        uses: actions/cache@v4
+        with:
+          path: tools/cache
+          key: mapgames-sources-${{ github.run_id }}
+          restore-keys: mapgames-sources-
+
+      - name: Build packs
+        run: node tools/build-packs.mjs all
+
+      - name: Build release bundles
+        run: node tools/release-packs.mjs
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAPGAMES_TAG: ${{ inputs.tag }}
+        run: |
+          [ -n "$MAPGAMES_TAG" ] || export MAPGAMES_TAG="data-$(date +%F)"
+          gh release create "$MAPGAMES_TAG" dist/release/* \
+            --title "Quiz data ${MAPGAMES_TAG#data-}" \
+            --notes "Prebuilt quiz packs, rebuilt from source. Download with \`node tools/fetch-packs.mjs\` (see DATA.md)."

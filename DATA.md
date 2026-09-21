@@ -5,15 +5,43 @@ keys, no accounts. This doc explains where each dataset comes from, how it's pro
 the normalized format quizzes consume, and how to plug in your own data for your own
 country or city.
 
-## TL;DR
+## TL;DR — just get the data
 
 ```sh
-node tools/build-packs.mjs all     # ~30–60 min first run, ~800MB cached in tools/cache/
+node tools/fetch-packs.mjs         # prebuilt packs from the latest GitHub release
+```
+
+That is the path you want. Everything below describes how those packs are *made*.
+
+## Building from source instead
+
+```sh
+node tools/build-packs.mjs all     # hours; ~1GB cached in tools/cache/
 node tools/serve.mjs               # → http://localhost:8017
 ```
 
 Re-runs are incremental: every download and conversion is cached and skipped if present.
 To force a refresh of one dataset, delete its files from `tools/cache/` and re-run.
+
+Only do this if you're adding a source, adding a city, or verifying the pipeline. The
+per-city OpenStreetMap steps make hundreds of throttled requests to volunteer-run
+Overpass servers, so please don't run them just to get data that a release already has.
+
+## How the data reaches you
+
+Packs are **not committed to git** — they're regenerated output (258MB raw, 66MB gzipped),
+and committing them would grow the repo without bound on every rebuild. Instead:
+
+- `node tools/release-packs.mjs` splits `data/packs/` into tiered tarballs in
+  `dist/release/` (`--publish` also creates/updates the GitHub release).
+- `node tools/fetch-packs.mjs` downloads and unpacks them, merging each bundle's index
+  fragment into `data/index.json` so the builder lists exactly what you downloaded.
+- `.github/workflows/rebuild-data.yml` rebuilds and republishes **yearly** (and on demand).
+  The upstream sources move on an annual cadence at most, so more often would just
+  re-download the same bytes.
+
+Tiers: `world` (16MB), `us` (14MB), `cities` (5MB), `city-layers` (30MB, every city's
+neighborhoods/transit/roads/ZIPs), plus a ~1MB standalone bundle per fully-covered city.
 
 ## Sources
 
