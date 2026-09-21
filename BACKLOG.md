@@ -45,6 +45,66 @@ Engine work required (the only real gap — everything today is polygons or poin
 3. Pipeline: an `overpass` step — per-city cached queries (be polite: one request per
    city per layer), merge segments by name/ref, emit `kind: "line"` packs.
 
+## City-map legibility: basemaps & reference layers (researched 2026-09-01)
+
+Problem: a bare neighborhoods map (e.g. Grand Rapids) gives no orientation — no river,
+no parks, no roads, so you can't tell what you're looking at.
+
+Three approaches, cheapest first:
+
+1. **Reference underlay from our own OSM data** (recommended default). Render water,
+   parks, and major roads *beneath* the targets as non-interactive, muted geometry.
+   Free, offline, no API keys, no licensing issues, keeps the chart aesthetic, and we
+   control exactly how much it gives away. Blocker: our OSM fetch covers only the 30
+   cities in `tools/cities.json`, while neighborhoods cover ~250. Needs a lighter
+   "basemap layers" fetch (water + parks + roads only) for every city with a city-level
+   pack. Grand Rapids alone would gain the Grand River, which is most of the fix.
+2. **Optional labels** on reference features (river names, big parks) — SVG text,
+   toggleable. Cheap once (1) exists.
+3. **Raster tiles behind the map** (the "overlay on Google Maps / satellite" ask).
+   Licensing verdicts:
+   - **Google Maps/satellite tiles: not viable.** Their terms forbid overlaying and
+     redistribution outside the paid Maps APIs. Rules this out for an open repo.
+   - **OSM's own tile server: not viable at scale.** Their usage policy forbids bulk /
+     app use; fine for personal poking only.
+   - **Esri World Imagery** — the satellite layer most open projects use; free with
+     attribution, terms worth re-reading before shipping.
+   - **Sentinel-2 cloudless (EOX)** — cleanly CC-BY-4.0, true satellite, global.
+   - **USDA NAIP** — public domain, very high-res aerial, US only.
+   - Keyed providers (MapTiler, Stadia, Thunderforest, Mapbox) work but push an API key
+     onto every user of the repo — bad for the "clone and play" story.
+   - **Design tension: a labeled street basemap breaks the game** — Google/OSM tiles
+     print "Eastown", "Heritage Hill" right on the map. Satellite imagery has no labels,
+     so it orients without spoiling; if a street basemap is ever used, it must be a
+     no-labels style (Carto Positron No Labels, or Esri imagery minus its reference layer).
+   - Engine work: tiles are Web Mercator (EPSG:3857) on a fixed grid, so city-scale
+     quizzes would need to switch projection to Web Mercator and place tiles as an image
+     layer behind the SVG, re-fetching on zoom. Doable without adopting MapLibre.
+4. **Assist toggle** — "reference: off / subtle / satellite" resolves the pedagogy
+   tension (beginners want orientation, experts want a blank map) and makes (3) optional
+   rather than a hard dependency.
+
+## Distributing the data to people who clone the repo (researched 2026-09-01)
+
+Today a cloner gets code only and must run `build-packs.mjs all`: 30–60+ min, ~900MB of
+downloads, and it hammers the shared Overpass server once per user. Not acceptable.
+
+Measured: full pack library is **258MB raw, 66MB gzipped**.
+
+- **GitHub Releases + a fetch script (recommended).** Attach `packs-v1.tar.gz` (66MB, far
+  under the 2GB/file release limit) to a tagged release; `node tools/fetch-packs.mjs`
+  downloads and extracts it. Clean git history, versioned data, one command, zero load on
+  the upstream servers. Pair with **tiered downloads** (`--world`, `--us`, `--city boston`)
+  so someone who only wants world quizzes pulls ~3MB.
+- **Build in CI.** A GitHub Action runs the pipeline on a schedule and publishes the
+  release artifact, so the data stays fresh and nobody has to run it by hand.
+- **GitHub Pages** — could host the app *and* data as a live playable site (1GB limit
+  fits; bandwidth fine at hobby scale). Makes the repo a URL, not just source.
+- Rejected: **committing packs to git** (regenerated data creates new blobs every rebuild,
+  so the repo grows without bound); **Git LFS** (1GB/month free bandwidth dies instantly);
+  **runtime fetching from original sources** (CORS, shapefiles, GB-scale files — needs a
+  server the project doesn't have).
+
 ## The data horizon (assessed 2026-09-01: political/admin data is essentially exhausted)
 
 - **Physical geography** — rivers, lakes, mountain ranges/peaks, seas, deserts, islands
