@@ -61,7 +61,7 @@
     el.map.appendChild(svg);
 
     const scene = Geo.buildScene(quiz.features, quiz.context, MAP_WIDTH,
-      { bounds: quiz.bounds });
+      { bounds: quiz.bounds, reference: quiz.reference });
     home = { x: 0, y: 0, w: scene.width, h: scene.height };
     view = { ...home };
     minW = scene.width / 60;
@@ -75,6 +75,18 @@
       p.setAttribute('d', d);
       p.classList.add('ctx');
       layer.appendChild(p);
+    }
+
+    // orientation underlay, above the land backdrop and below the quiz itself:
+    // water, then parks, then roads (so a road crossing a park stays visible)
+    for (const name of ['water', 'parks', 'roads']) {
+      for (const s of (scene.reference || {})[name] || []) {
+        const p = document.createElementNS(SVG_NS, 'path');
+        p.setAttribute('d', s.d);
+        p.classList.add('ref', 'ref--' + name);
+        if (s.line) p.classList.add('ref--stroke');
+        layer.appendChild(p);
+      }
     }
 
     const targetSet = new Set(quiz.targetIds);

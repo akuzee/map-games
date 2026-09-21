@@ -24,7 +24,10 @@ const INLINE_PACKS = [
     .map((f) => 'us-counties/' + f.replace('.json', '')),
   'us-townships/MA',
   'us-places/MA',
-  'geocities/FRA',
+  // per-city orientation underlays (water/parks/roads) for the bundled cities
+  ...['boston', 'new-york', 'chicago', 'san-francisco', 'los-angeles', 'seattle',
+    'philadelphia', 'washington-dc', 'grand-rapids'].map((c) => 'reference/' + c),
+  'neighborhoods/grand-rapids',
   'osm-transit-lines/boston', 'osm-transit-stations/boston', 'osm-major-roads/boston',
   'osm-waterways/boston', 'osm-parks/boston', 'osm-landmarks/boston',
   'osm-transit-lines/new-york', 'zips/boston', 'us-school-districts/MA',
@@ -34,10 +37,16 @@ const INLINE_PACKS = [
   'neighborhoods/philadelphia', 'neighborhoods/washington', 'neighborhoods/washington-dc',
 ].filter((id) => fs.existsSync(path.join(root, 'data/packs', id + '.json')));
 
+// A preset whose pack isn't bundled would render as a card that errors when
+// clicked, so the artifact only advertises what it actually carries.
+const bundled = new Set(INLINE_PACKS);
+const presets = JSON.parse(read('data/presets.json'))
+  .filter((q) => bundled.has(q.pack));
+
 const inline = {
   'data/index.json': JSON.parse(read('data/index.json')),
   'data/groups.json': JSON.parse(read('data/groups.json')),
-  'data/presets.json': JSON.parse(read('data/presets.json')),
+  'data/presets.json': presets,
 };
 for (const id of INLINE_PACKS) {
   inline['data/packs/' + id + '.json'] = JSON.parse(read('data/packs/' + id + '.json'));
@@ -61,5 +70,6 @@ const out = [
 
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/map-games.html'), out);
+console.log('  presets kept:', presets.length);
 console.log('wrote dist/map-games.html —', (out.length / 1024 / 1024).toFixed(1) + 'MB,',
   INLINE_PACKS.length, 'packs inlined');

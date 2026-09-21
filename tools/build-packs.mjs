@@ -317,7 +317,9 @@ function hoodCityBoxes() {
     catch { continue; }
     const feats = (gj.features || []).filter((f) => f.geometry);
     if (feats.length < 5) continue;
-    const b = featsBbox(feats, 0.12);
+    // plain lon/lat — Overpass wants real coordinates, not the antimeridian-cut
+    // space featsBbox returns (that once queried France for Grand Rapids)
+    const b = plainBbox(feats, 0.12);
     // skip non-city entries in the dataset (continents, whole states, cantons)
     if (b.maxLon - b.minLon > 1.6 || b.maxLat - b.minLat > 1.6) continue;
     out.push({ slug: file.replace('.geojson', ''), bbox: b });
@@ -419,7 +421,10 @@ function writePack(rel, pack) {
   const p = path.join(OUT, 'packs', rel);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(pack));
-  return { path: 'data/packs/' + rel, count: pack.features.length };
+  const count = pack.features
+    ? pack.features.length
+    : Object.values(pack).reduce((n, v) => n + (Array.isArray(v) ? v.length : 0), 0);
+  return { path: 'data/packs/' + rel, count };
 }
 
 function emit() {
@@ -648,10 +653,11 @@ function emit() {
       const bb = featsBbox(feats, 0.35);
       let context = countiesForBbox(bb);
       if (!context.length) context = admin1ForBbox(bb);
+      const reference = ensureReference(index, slug, plainBbox(feats, 0.35));
       index.packs['neighborhoods/' + slug] = {
         kind: 'polygon', level: 'neighborhood', label: 'Neighborhoods — ' + label,
         ...writePack('neighborhoods/' + slug + '.json',
-          { kind: 'polygon', features: feats, context }),
+          { kind: 'polygon', features: feats, context, reference }),
       };
       menu.push({ slug, label, count: feats.length });
     }
@@ -758,6 +764,23 @@ function lonGapCut(bboxes) {
   return (lon) => ((((lon - g) % 360) + 360) % 360) - 180;
 }
 
+// plain lon/lat bbox — no antimeridian remapping, for comparing against raw
+// OSM coordinates (featsBbox below returns cut-space lon, which is not comparable)
+function plainBbox(feats, padFrac) {
+  let b = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
+  for (const f of feats) {
+    const g = f.geometry ? geomBbox(f.geometry)
+      : { minLon: f.lon, maxLon: f.lon, minLat: f.lat, maxLat: f.lat };
+    b.minLon = Math.min(b.minLon, g.minLon);
+    b.maxLon = Math.max(b.maxLon, g.maxLon);
+    b.minLat = Math.min(b.minLat, g.minLat);
+    b.maxLat = Math.max(b.maxLat, g.maxLat);
+  }
+  const padLon = (b.maxLon - b.minLon) * padFrac, padLat = (b.maxLat - b.minLat) * padFrac;
+  return { minLon: b.minLon - padLon, maxLon: b.maxLon + padLon,
+    minLat: b.minLat - padLat, maxLat: b.maxLat + padLat };
+}
+
 // bbox (with padding) in cut-space, so antimeridian packs (Alaska!) stay contiguous
 function featsBbox(feats, padFrac) {
   const boxes = feats.map((f) => f.geometry ? geomBbox(f.geometry)
@@ -807,6 +830,109 @@ function cityContext(city) {
   const rl = city.r, rlon = city.r / Math.cos(city.lat * Math.PI / 180);
   return countiesForBbox({ minLon: city.lon - rlon, maxLon: city.lon + rlon,
     minLat: city.lat - rl, maxLat: city.lat + rl });
+}
+
+// ---------- reference underlay: water / parks / roads drawn beneath a city quiz ----------
+// Sources: the `basemaps` step for most cities; for cities.json cities the `osm`
+// step already fetched the same features, so those are reused instead of refetched.
+const refCache = {};
+
+function refLayersFromElements(elements, bbox) {
+  const water = [], parks = [], roads = [];
+  const inBox = (pts) => !bbox || pts.some(([x, y]) =>
+    x > bbox.minLon && x < bbox.maxLon && y > bbox.minLat && y < bbox.maxLat);
+
+  for (const e of elements) {
+    const t = e.tags || {};
+    let rings = [];
+    if (e.type === 'way' && e.geometry) rings = [wayCoords(e.geometry)];
+    else if (e.type === 'relation' && e.members) {
+      rings = e.members
+        .filter((m) => m.type === 'way' && m.geometry && (m.role === 'outer' || !m.role))
+        .map((m) => wayCoords(m.geometry));
+    }
+    if (!rings.length) continue;
+
+    if (t.natural === 'water' || t.waterway === 'river' || t.waterway === 'canal') {
+      const closed = t.natural === 'water';
+      for (const r of (closed ? assembleRings(rings) : rings)) {
+        if (r.length < 2 || !inBox(r)) continue;
+        water.push(closed
+          ? { type: 'Polygon', coordinates: [rnd4(dpSimplify(r, 1.2e-4))] }
+          : { type: 'LineString', coordinates: rnd4(dpSimplify(r, 1.2e-4)) });
+      }
+    } else if (t.leisure === 'park' || t.leisure === 'garden') {
+      for (const r of assembleRings(rings)) {
+        if (!inBox(r)) continue;
+        parks.push({ type: 'Polygon', coordinates: [rnd4(dpSimplify(r, 1.2e-4))] });
+      }
+    } else if (t.highway) {
+      for (const r of rings) {
+        if (r.length < 2 || !inBox(r)) continue;
+        roads.push({ type: 'LineString', coordinates: rnd4(dpSimplify(r, 2e-4)) });
+      }
+    }
+  }
+  // An underlay must read at a glance and stay small: keep the biggest features
+  // of each kind (longest rivers/roads, largest parks) and drop the long tail.
+  const extent = (g) => {
+    const pts = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of pts) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return (maxX - minX) + (maxY - minY);
+  };
+  const cap = (arr, n) => arr.length <= n ? arr
+    : arr.map((g) => [extent(g), g]).sort((a, b) => b[0] - a[0]).slice(0, n)
+      .map(([, g]) => g);
+
+  return { water: cap(water, 250), parks: cap(parks, 300), roads: cap(roads, 700) };
+}
+
+function referenceFor(slug, bbox) {
+  if (slug in refCache) return refCache[slug];
+  let elements = null;
+
+  const bm = path.join(CACHE, 'basemap', slug + '.json');
+  if (fs.existsSync(bm)) {
+    try { elements = JSON.parse(fs.readFileSync(bm, 'utf8')).elements; } catch { /* bad json */ }
+  }
+  if (!elements) {
+    // fall back to the per-city quiz layers fetched by the `osm` step
+    const dir = path.join(CACHE, 'osm', slug);
+    if (fs.existsSync(dir)) {
+      elements = [];
+      for (const layer of ['waterways', 'parks', 'major-roads']) {
+        const f = path.join(dir, layer + '.json');
+        if (!fs.existsSync(f)) continue;
+        try { elements.push(...JSON.parse(fs.readFileSync(f, 'utf8')).elements); }
+        catch { /* bad json */ }
+      }
+    }
+  }
+  if (!elements || !elements.length) return refCache[slug] = null;
+
+  const ref = refLayersFromElements(elements, bbox);
+  const total = ref.water.length + ref.parks.length + ref.roads.length;
+  return refCache[slug] = total ? ref : null;
+}
+
+// Written once per city and shared by that city's packs (a city has up to ten:
+// neighborhoods, ZIPs, and seven OSM layers — inlining would duplicate it).
+function ensureReference(index, slug, bbox) {
+  const id = 'reference/' + slug;
+  if (index.packs[id]) return id;
+  const ref = referenceFor(slug, bbox);
+  if (!ref) return undefined;
+  index.packs[id] = {
+    kind: 'reference', level: 'reference', label: 'Map reference — ' + slug,
+    ...writePack(id + '.json', ref),
+  };
+  return id;
 }
 
 function emitOsm(index) {
@@ -917,10 +1043,11 @@ function emitOsm(index) {
       if (feats.length < (layer === 'transit-lines' ? 3 : 5)) continue;
 
       const packId = 'osm-' + layer + '/' + city.slug;
+      const reference = ensureReference(index, city.slug, plainBbox(feats, 0.1));
       index.packs[packId] = {
         kind: def.kind, level: 'osm', label: def.label + ' — ' + city.label,
         ...writePack('osm-' + layer + '/' + city.slug + '.json',
-          { kind: def.kind, features: feats, context: cityContext(city) }),
+          { kind: def.kind, features: feats, context: cityContext(city), reference }),
       };
       (layerMenus[layer] ||= []).push({ slug: city.slug, label: city.label, count: feats.length });
     }
@@ -985,10 +1112,11 @@ function emitCivic(index) {
         .map((z) => ({ id: z.zip, name: z.zip, pop: null, geometry: z.geometry }))
         .sort((x, y) => x.name.localeCompare(y.name));
       if (feats.length < 10) continue;
+      const reference = ensureReference(index, city.slug, plainBbox(feats, 0.1));
       index.packs['zips/' + city.slug] = {
         kind: 'polygon', level: 'zip', label: 'ZIP codes — ' + city.label,
         ...writePack('zips/' + city.slug + '.json',
-          { kind: 'polygon', features: feats, context: cityContext(city) }),
+          { kind: 'polygon', features: feats, context: cityContext(city), reference }),
       };
       menu.push({ slug: city.slug, label: city.label, count: feats.length });
     }

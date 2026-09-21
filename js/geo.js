@@ -175,10 +175,20 @@
       return { id: f.id, name: f.name, x, y };
     });
 
+    // reference layers ride along in the same projection but never influence the
+    // fit — they're an underlay, and the SVG viewBox clips whatever overflows
+    const reference = {};
+    for (const [layer, geoms] of Object.entries(opts?.reference || {})) {
+      if (!Array.isArray(geoms)) continue;
+      reference[layer] = geoms.map((g) => ({ d: toPath(g), line: isLine(g) }))
+        .filter((s) => s.d);
+    }
+
     return {
       width, height,
       shapes,
       context: (context || []).map((f) => toPath(f.geometry)),
+      reference,
     };
   }
 

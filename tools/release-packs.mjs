@@ -18,7 +18,7 @@ const OUT = path.join(root, 'dist/release');
 const TAG = process.env.MAPGAMES_TAG || 'data-' + new Date().toISOString().slice(0, 10);
 
 const index = JSON.parse(fs.readFileSync(path.join(root, 'data/index.json'), 'utf8'));
-const CITY_PREFIXES = ['neighborhoods/', 'osm-', 'zips/'];
+const CITY_PREFIXES = ['neighborhoods/', 'osm-', 'zips/', 'reference/'];
 // cities with full layer coverage also get a standalone bundle, so someone who
 // only wants their own city pulls ~1MB instead of the 30MB city-layers tier
 const SOLO_CITIES = new Set(JSON.parse(

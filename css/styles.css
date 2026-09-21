@@ -17,6 +17,9 @@
   --solved-2: #d07a2e;
   --missed: #b3402f;
   --flash: #b3402f;
+  --ref-water: #c3d9de;
+  --ref-park: #d8e3cf;
+  --ref-road: #ddd3c2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,6 +41,9 @@
     --solved-2: #cf7c31;
     --missed: #c05242;
     --flash: #c05242;
+    --ref-water: #1d3138;
+    --ref-park: #2a3a2c;
+    --ref-road: #3a4440;
   }
 }
 :root[data-theme="dark"] {
@@ -58,6 +64,9 @@
   --solved-2: #cf7c31;
   --missed: #c05242;
   --flash: #c05242;
+  --ref-water: #1d3138;
+  --ref-park: #2a3a2c;
+  --ref-road: #3a4440;
 }
 
 /* ---------- Frame ---------- */
@@ -550,6 +559,25 @@ circle.town {
 .legend .k1 { background: var(--solved-1); }
 .legend .k2 { background: var(--solved-2); }
 .legend .k3 { background: var(--missed); }
+
+/* ---------- reference underlay (orientation only, never interactive) ---------- */
+.ref { pointer-events: none; }
+.ref--water { fill: var(--ref-water); stroke: none; }
+.ref--parks { fill: var(--ref-park); stroke: none; }
+.ref--roads { fill: none; }
+.ref--water.ref--stroke {
+  fill: none;
+  stroke: var(--ref-water);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.ref--roads.ref--stroke {
+  stroke: var(--ref-road);
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
 
 /* ---------- End panel ---------- */
 #end-panel {

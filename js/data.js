@@ -109,6 +109,14 @@
       const inScope = new Set(scoped.map((f) => f.id));
       context = context.concat(pack.features.filter((f) => !inScope.has(f.id)));
     }
+    // shared per-city underlay (water / parks / roads) — its own file, since a
+    // city's ten packs would otherwise each carry a copy
+    let reference = null;
+    if (pack.reference) {
+      try { reference = await loadPack(pack.reference); }
+      catch { /* not in this bundle — the quiz still plays, just barer */ }
+    }
+
     return {
       title: config.title,
       subtitle: config.subtitle ||
@@ -122,6 +130,7 @@
       // otherwise point quizzes get country/admin-1 outlines
       context: context.length ? context
         : (isPoint ? await resolveContext(config, index) : []),
+      reference,
       bounds: config.bounds,
     };
   }
