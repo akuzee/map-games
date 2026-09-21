@@ -104,6 +104,8 @@
   const b = {
     cats: $('b-cats'), dataset: $('b-dataset'), scope: $('b-scope'), scopeLabel: $('b-scope-label'),
     mode: $('b-mode'), n: $('b-n'), min: $('b-min'), group: $('b-group'),
+    detail: $('b-detail'), detailWrap: $('b-detail-wrap'),
+    detailNote: $('b-detail-note'), detailScale: document.querySelector('.detail-scale'),
     nWrap: $('b-n-wrap'), minWrap: $('b-min-wrap'), groupWrap: $('b-group-wrap'),
     manualWrap: $('b-manual-wrap'), manualSearch: $('b-manual-search'),
     manualList: $('b-manual-list'), title: $('b-title'), preview: $('b-preview'),
@@ -119,47 +121,57 @@
    */
   const DATASETS = [
     { id: 'world-countries', cat: 'world', label: 'Countries', scope: 'continent',
-      modes: ['independent', 'all', 'top', 'minPop', 'group', 'manual'] },
+      modes: ['detail', 'independent', 'top', 'minPop', 'group', 'manual'],
+      detail: { quick: 12, standard: 60 } },
     { id: 'admin1', cat: 'world', label: 'States & provinces', scope: 'country-admin1',
       modes: ['all', 'manual'] },
     { id: 'adm2', cat: 'world', label: 'Counties & districts', scope: 'country-adm2',
       modes: ['all', 'manual'] },
     { id: 'cities', cat: 'world', label: 'Major cities', scope: 'cities',
-      modes: ['top', 'capitals', 'minPop', 'manual'] },
+      modes: ['detail', 'top', 'capitals', 'minPop', 'manual'],
+      detail: { quick: 10, standard: 40 } },
     { id: 'geocities', cat: 'world', label: 'All cities of one country',
-      scope: 'country-geocities', modes: ['top', 'minPop', 'manual'] },
+      scope: 'country-geocities', modes: ['detail', 'top', 'minPop', 'manual'],
+      detail: { quick: 10, standard: 30 } },
 
     { id: 'us-counties', cat: 'us', label: 'Counties', scope: 'us-state',
-      modes: ['all', 'top', 'minPop', 'manual'] },
+      modes: ['detail', 'top', 'minPop', 'manual'], detail: { quick: 10, standard: 45 } },
     { id: 'us-townships', cat: 'us', label: 'Townships & municipalities', scope: 'us-state',
-      modes: ['top', 'minPop', 'all', 'manual'] },
+      modes: ['detail', 'top', 'minPop', 'manual'], detail: { quick: 10, standard: 40 } },
     { id: 'us-places', cat: 'us', label: 'Cities & towns', scope: 'us-state',
-      modes: ['top', 'minPop', 'all', 'manual'] },
+      modes: ['detail', 'top', 'minPop', 'manual'], detail: { quick: 10, standard: 40 } },
     { id: 'us-school-districts', cat: 'us', label: 'School districts', scope: 'us-state',
       modes: ['all', 'manual'] },
 
     { id: 'neighborhoods', cat: 'city', label: 'Neighborhoods', scope: 'hood-city',
       modes: ['all', 'manual'] },
     { id: 'osm-transit-lines', cat: 'city', label: 'Transit lines', scope: 'osm:transit-lines',
-      modes: ['all', 'top', 'manual'] },
+      modes: ['detail', 'top', 'manual'], detail: { quick: 5, standard: 12 } },
     { id: 'osm-transit-stations', cat: 'city', label: 'Transit stations',
-      scope: 'osm:transit-stations', modes: ['top', 'all', 'manual'] },
+      scope: 'osm:transit-stations', modes: ['detail', 'top', 'manual'],
+      detail: { quick: 10, standard: 30 } },
     { id: 'osm-major-roads', cat: 'city', label: 'Major roads & highways',
-      scope: 'osm:major-roads', modes: ['top', 'all', 'manual'] },
+      scope: 'osm:major-roads', modes: ['detail', 'top', 'manual'],
+      detail: { quick: 6, standard: 15 } },
     { id: 'osm-landmarks', cat: 'city', label: 'Landmarks & museums', scope: 'osm:landmarks',
-      modes: ['top', 'all', 'manual'] },
+      modes: ['detail', 'top', 'manual'], detail: { quick: 8, standard: 25 } },
     { id: 'osm-parks', cat: 'city', label: 'Parks & gardens', scope: 'osm:parks',
-      modes: ['top', 'all', 'manual'] },
+      modes: ['detail', 'top', 'manual'], detail: { quick: 6, standard: 18 } },
     { id: 'osm-waterways', cat: 'city', label: 'Rivers & canals', scope: 'osm:waterways',
-      modes: ['all', 'top', 'manual'] },
+      modes: ['detail', 'top', 'manual'], detail: { quick: 4, standard: 10 } },
     { id: 'osm-trails', cat: 'city', label: 'Trails & bike routes', scope: 'osm:trails',
-      modes: ['top', 'all', 'manual'] },
+      modes: ['detail', 'top', 'manual'], detail: { quick: 5, standard: 12 } },
     { id: 'zips', cat: 'city', label: 'ZIP codes', scope: 'zip-city',
       modes: ['all', 'manual'] },
 
     { id: 'custom', cat: 'custom', label: 'Your own packs', scope: 'custom',
-      modes: ['all', 'top', 'minPop', 'manual'] },
+      modes: ['all', 'detail', 'top', 'minPop', 'manual'],
+      detail: { quick: 10, standard: 30 } },
   ];
+
+  // the three rungs of the detail slider
+  const LEVELS = ['quick', 'standard', 'all'];
+  const LEVEL_LABELS = { quick: 'Quick', standard: 'Standard', all: 'Everything' };
 
   const CATEGORIES = [
     { id: 'world', label: 'World' },
@@ -169,6 +181,7 @@
   ];
 
   const MODE_LABELS = {
+    detail: 'Level of detail',
     all: 'Everything in the region',
     independent: 'Independent countries',
     top: 'Top N by population',            // relabelled per dataset below
@@ -214,6 +227,7 @@
     for (const input of [b.n, b.min, b.group]) {
       input.addEventListener('change', updatePreview);
     }
+    b.detail.addEventListener('input', () => { markDetailScale(); updatePreview(); });
     b.manualSearch.addEventListener('input', filterManualList);
     b.play.addEventListener('click', () => play(currentConfig(), 'builder'));
     b.save.addEventListener('click', () => {
@@ -290,8 +304,17 @@
     refreshFilterInputs();
   }
 
+  function markDetailScale() {
+    const v = b.detail.value;
+    for (const span of b.detailScale.children) {
+      span.dataset.active = String(span.dataset.lv === v);
+    }
+  }
+
   async function refreshFilterInputs() {
     const mode = b.mode.value;
+    b.detailWrap.hidden = mode !== 'detail';
+    if (mode === 'detail') markDetailScale();
     b.nWrap.hidden = mode !== 'top';
     b.minWrap.hidden = mode !== 'minPop';
     b.groupWrap.hidden = mode !== 'group';
@@ -320,6 +343,13 @@
 
     const mode = b.mode.value;
     const select = { mode };
+    if (mode === 'detail') {
+      const level = LEVELS[+b.detail.value] || 'standard';
+      select.level = level;
+      // resolve the level to a count here: the dataset knows what "quick" means
+      // for it, and the saved config stays self-describing
+      if (level !== 'all') select.n = (ds.detail || { quick: 10, standard: 30 })[level];
+    }
     if (mode === 'top') select.n = Math.max(2, +b.n.value || 20);
     if (mode === 'minPop') select.min = +b.min.value || 0;
     if (mode === 'group') select.group = b.group.value;
@@ -336,6 +366,15 @@
     const scopeLabel = b.scope.parentElement.hidden
       ? '' : (b.scope.selectedOptions[0]?.textContent || '');
     const mode = b.mode.value;
+    if (mode === 'detail') {
+      const level = LEVELS[+b.detail.value] || 'standard';
+      const noun = ds.label.toLowerCase();
+      if (level === 'quick') return (scopeLabel ? scopeLabel + ': ' : '') + 'essential ' + noun;
+      if (level === 'all') {
+        return scopeLabel ? scopeLabel + ': all ' + noun : 'All ' + noun;
+      }
+      return (scopeLabel ? scopeLabel + ' — ' : '') + ds.label;
+    }
     if (mode === 'top') {
       return (scopeLabel ? scopeLabel + ': ' : '') + 'top ' + (+b.n.value || 20) +
         ' ' + ds.label.toLowerCase();
@@ -353,6 +392,13 @@
     try {
       const quiz = await Data.resolveQuiz(currentConfig());
       if (seq !== previewSeq) return;
+      if (b.mode.value === 'detail') {
+        const level = LEVELS[+b.detail.value] || 'standard';
+        b.detailNote.textContent = level === 'all'
+          ? 'Everything in this dataset — ' + quiz.targetIds.length + ' to find.'
+          : LEVEL_LABELS[level] + ' — the ' + quiz.targetIds.length +
+            ' most prominent' + (quiz.kind === 'point' ? '' : ' of them') + '.';
+      }
       b.preview.textContent = quiz.targetIds.length + ' targets' + {
         polygon: ' on a map of ' + quiz.features.length + ' regions',
         line: ' — lines on the map',

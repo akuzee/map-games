@@ -53,6 +53,15 @@
     switch (s.mode) {
       case 'all':
         return features;
+      case 'detail': {
+        // "Everything" means everything; the other rungs take the top slice by
+        // the same weight "top N" uses (population, else prominence rank)
+        if ((s.level || 'standard') === 'all') return features;
+        const weight = (f) => f.pop ?? f.rank ?? null;
+        const ranked = features.filter((f) => weight(f) != null);
+        if (!ranked.length) return features; // unranked pack: nothing to trim by
+        return ranked.sort((a, b) => weight(b) - weight(a)).slice(0, s.n || 20);
+      }
       case 'top':
       case 'topPop': {
         // population where we have it, prominence rank where we don't

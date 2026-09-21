@@ -385,6 +385,25 @@ section h2 {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.field-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  margin-bottom: 0.45rem;
+}
+#b-detail { width: 100%; accent-color: var(--accent); margin: 0; }
+.detail-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  margin-top: 0.15rem;
+}
+.detail-scale span[data-active="true"] { color: var(--accent); font-weight: 600; }
+.field-note { font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.4rem; }
+
 #b-manual-list {
   max-height: 14rem;
   overflow-y: auto;

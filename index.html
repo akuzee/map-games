@@ -130,6 +130,20 @@
       <label>Which targets
         <select id="b-mode"></select>
       </label>
+      <div id="b-detail-wrap" hidden>
+        <span class="field-label">Level of detail</span>
+        <input id="b-detail" type="range" min="0" max="2" step="1" value="1"
+               list="detail-ticks" aria-describedby="b-detail-note">
+        <datalist id="detail-ticks">
+          <option value="0" label="Quick"></option>
+          <option value="1" label="Standard"></option>
+          <option value="2" label="Everything"></option>
+        </datalist>
+        <div class="detail-scale" aria-hidden="true">
+          <span data-lv="0">Quick</span><span data-lv="1">Standard</span><span data-lv="2">Everything</span>
+        </div>
+        <p id="b-detail-note" class="field-note"></p>
+      </div>
       <label id="b-n-wrap" hidden>How many (N)
         <input id="b-n" type="number" min="2" max="500" value="20">
       </label>
