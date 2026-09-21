@@ -26,8 +26,8 @@ const INLINE_PACKS = [
   'us-places/MA',
   // per-city orientation underlays (water/parks/roads) for the bundled cities
   ...['boston', 'new-york', 'chicago', 'san-francisco', 'los-angeles', 'seattle',
-    'philadelphia', 'washington-dc', 'grand-rapids'].map((c) => 'reference/' + c),
-  'neighborhoods/grand-rapids',
+    'philadelphia', 'washington-dc', 'grand-rapids', 'bronx'].map((c) => 'reference/' + c),
+  'neighborhoods/grand-rapids', 'neighborhoods/bronx',
   'osm-transit-lines/boston', 'osm-transit-stations/boston', 'osm-major-roads/boston',
   'osm-waterways/boston', 'osm-parks/boston', 'osm-landmarks/boston',
   'osm-transit-lines/new-york', 'zips/boston', 'us-school-districts/MA',
