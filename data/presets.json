@@ -182,6 +182,14 @@
     }
   },
   {
+    "id": "sf-neighborhoods",
+    "title": "Neighborhoods of San Francisco",
+    "pack": "neighborhoods/san-francisco",
+    "select": {
+      "mode": "all"
+    }
+  },
+  {
     "id": "france-cities",
     "title": "France: 20 Biggest Cities",
     "pack": "geocities/FRA",

@@ -916,8 +916,9 @@ function refLayersFromElements(elements, bbox) {
       ...rankedPolys(lakes, 0.00002, 150, 1.2e-4),
       ...rankedLines(riversByName, 0.05, 50, 1.2e-4),
     ],
-    parks: rankedPolys(parks, 0.0004, 12, 1.2e-4),
-    roads: rankedLines(roadsByName, 0.22, 45, 2.5e-4),
+    parks: rankedPolys(parks, 0.00015, 22, 1.2e-4),
+    // inside the quiz area we want the essential roads plus a few, not a grid
+    roads: rankedLines(roadsByName, 0.3, 26, 2.5e-4),
   };
 }
 
