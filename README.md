@@ -1,9 +1,13 @@
 # Map Games
 
-Seterra-style blank-map quizzes for any region: pick what to quiz (countries, states/
-provinces, US counties, US townships, US cities, world cities), scope it to a region,
-filter the targets ("top 20 by population", "NATO members", "capitals only", hand-picked),
-and play. Ships with 10 presets and an in-app builder; custom quizzes save to the library.
+Seterra-style blank-map quizzes at any scale — countries and capitals, states and
+provinces, US counties and townships and ZIP codes, and city layers like neighborhoods,
+transit lines, major roads, parks and landmarks.
+
+Pick what to quiz, scope it to a region, then choose a level of detail (Quick / Standard /
+Everything) or a precise filter ("top 20 by population", "NATO members", "capitals only",
+hand-picked). ~1,350 data packs, 18 presets, and an in-app builder; custom quizzes save to
+your library.
 
 ## Run
 
@@ -48,8 +52,11 @@ js/app.js             routing, library, builder UI
 data/index.json       catalog of packs + menu lists (generated)
 data/groups.json      membership lists (NATO, EU, G7, G20, ASEAN) by ISO A3 (generated)
 data/presets.json     starter quiz library (hand-written configs)
-data/packs/           376 normalized data packs, ~42MB (generated, gitignore-able)
-tools/build-packs.mjs the data pipeline (download → convert → pops → emit)
+data/packs/           ~1,350 normalized packs, ~260MB (generated, not in git)
+tools/build-packs.mjs the data pipeline (one function per step; see DATA.md)
+tools/fetch-packs.mjs download prebuilt packs from the latest GitHub release
+tools/release-packs.mjs bundle packs into tiered tarballs and publish them
+tools/add-pack.mjs    turn any GeoJSON of your own into a playable pack
 tools/serve.mjs       zero-dependency static server
 tools/test-resolve.mjs node smoke test: resolves every preset through real code paths
 tools/build-artifact.mjs single-file bundle with a curated pack subset (dist/)
@@ -82,7 +89,8 @@ clone runs `node tools/build-packs.mjs all`); custom packs are kept.
 
 1. **Pipeline** (`node tools/build-packs.mjs all`, ~30–60 min first run, ~800MB of sources
    cached in `tools/cache/`; each step also runs standalone — `download`, `convert`, `pops`,
-   `geonames`, `adm2`, `hoods`, `emit`). Sources, all keyless bulk downloads:
+   `geonames`, `adm2`, `hoods`, `osm`, `basemaps`, `civic`, `emit`). Sources, all keyless
+   bulk downloads:
    - **Natural Earth**: admin-0 countries, admin-1 states/provinces, populated places
      (major cities with population + capital flags)
    - **US Census cartographic boundaries** (1:500k): counties, county subdivisions
@@ -91,8 +99,11 @@ clone runs `node tools/build-packs.mjs all`); custom packs are kept.
    - **GeoNames** `cities500`: every named place with 500+ population (~200k cities
      worldwide) with population, capital flags, and state/province membership
    - **geoBoundaries** ADM2: county/district-level polygons for ~180 countries (CC-BY)
-   - **click-that-hood**: community-curated neighborhood polygons for ~200 cities
+   - **click-that-hood**: community-curated neighborhood polygons for ~250 cities
      (US-heavy; OSM-derived, ODbL)
+   - **OpenStreetMap** via Overpass: per-city transit lines and stations, major roads,
+     rivers, trails, parks and landmarks, plus the map reference underlay
+   - **Census ZCTA / school districts**: ZIP codes and school-district boundaries
 
    Everything is simplified via mapshaper and emitted as normalized packs:
    `{kind: 'polygon'|'point', features: [{id, name, pop, capital?, continent?, country?,
@@ -109,8 +120,9 @@ clone runs `node tools/build-packs.mjs all`); custom packs are kept.
      "bounds": [-25, 34, 45, 72] }   // optional viewport crop (see Europe presets)
    ```
 
-   Select modes: `all`, `independent` (countries), `topPop`, `minPop`, `group`, `capitals`,
-   `manual`. `js/data.js` resolves a config against its pack into the engine's quiz shape.
+   Select modes: `detail` (Quick/Standard/Everything), `top` (by population, or by
+   prominence where population doesn't exist), `all`, `independent`, `minPop`, `group`,
+   `capitals`, `manual`. `js/data.js` resolves a config into the engine's quiz shape.
 
 3. **Rendering** (`js/geo.js`): equirectangular with cos(mid-lat) x-scaling at city/state/
    country scale; the Natural Earth projection beyond ~110° of longitude or ~65° of latitude.
@@ -129,9 +141,9 @@ Visual spot-checks work headlessly: `?play=<preset-id>` deep-links straight into
 
 ## Single-file build
 
-`node tools/build-artifact.mjs` → `dist/map-games.html` (~8MB): the app plus world
-countries, all admin-1 packs, all US county packs, MA townships/places, and cities.
-Other packs show a "not included in this bundle" message; the local app serves everything.
+`node tools/build-artifact.mjs` → `dist/map-games.html` (~14MB, cap is 16MB): the app plus
+world countries, every admin-1 and US county pack, and a starter set of city layers.
+Presets whose packs aren't bundled are dropped from that build; the local app has everything.
 
 ## Known limits (see BACKLOG.md)
 
