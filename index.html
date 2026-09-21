@@ -32,6 +32,7 @@
         <div class="stat"><span class="label">Score</span><span class="value" id="stat-score">100%</span></div>
         <div class="stat"><span class="label">Time</span><span class="value" id="stat-timer">00:00</span></div>
       </div>
+      <button id="btn-back-play" class="ghost-btn" hidden>Edit quiz</button>
       <button id="btn-exit-play" class="ghost-btn">Exit</button>
     </div>
   </header>
@@ -119,6 +120,7 @@
   <section id="view-builder" hidden>
     <h2>Create a quiz</h2>
     <form class="builder" onsubmit="return false">
+      <div class="cat-tabs" id="b-cats" role="tablist"></div>
       <label>What to quiz
         <select id="b-dataset"></select>
       </label>

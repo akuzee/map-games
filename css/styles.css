@@ -334,6 +334,34 @@ section h2 {
   flex-direction: column;
   gap: 0.9rem;
 }
+/* [hidden] must win over the flex/grid display rules below, or fields that
+   don't apply to the chosen mode stay on screen (and silently do nothing). */
+.builder [hidden] { display: none !important; }
+
+.cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+.cat-tab {
+  font: 0.8rem "Public Sans", "Helvetica Neue", Arial, sans-serif;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cat-tab:hover { color: var(--accent); border-color: var(--accent); }
+.cat-tab[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--panel);
+  font-weight: 600;
+}
+.cat-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .builder label {
   display: flex;
   flex-direction: column;

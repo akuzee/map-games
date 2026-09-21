@@ -20,7 +20,8 @@
 
   $('btn-home').addEventListener('click', () => { showView('home'); });
   $('btn-exit-play').addEventListener('click', () => { showView('home'); });
-  $('btn-new-quiz').addEventListener('click', () => { showView('builder'); refreshBuilder(); });
+  $('btn-back-play').addEventListener('click', () => { showView('builder'); });
+  $('btn-new-quiz').addEventListener('click', () => { showView('builder'); });
 
   // ---------- library ----------
   const loadSaved = () => {
@@ -36,6 +37,7 @@
     const s = cfg.select || { mode: 'all' };
     const what = {
       all: 'all', independent: 'independent countries',
+      top: 'top ' + (s.n || 20),
       topPop: 'top ' + (s.n || 20) + ' by population',
       minPop: 'population ≥ ' + Number(s.min || 0).toLocaleString(),
       group: s.group + ' members', capitals: 'capitals',
@@ -75,9 +77,14 @@
     }
   }
 
-  async function play(cfg) {
+  // where this quiz was launched from, so leaving it returns you there
+  let playedFrom = 'home';
+
+  async function play(cfg, from) {
     try {
       const quiz = await Data.resolveQuiz(cfg);
+      playedFrom = from || 'home';
+      $('btn-back-play').hidden = playedFrom !== 'builder';
       showView('play');
       Engine.start(quiz);
     } catch (err) {
@@ -95,7 +102,7 @@
 
   // ---------- builder ----------
   const b = {
-    dataset: $('b-dataset'), scope: $('b-scope'), scopeLabel: $('b-scope-label'),
+    cats: $('b-cats'), dataset: $('b-dataset'), scope: $('b-scope'), scopeLabel: $('b-scope-label'),
     mode: $('b-mode'), n: $('b-n'), min: $('b-min'), group: $('b-group'),
     nWrap: $('b-n-wrap'), minWrap: $('b-min-wrap'), groupWrap: $('b-group-wrap'),
     manualWrap: $('b-manual-wrap'), manualSearch: $('b-manual-search'),
@@ -103,55 +110,79 @@
     play: $('b-play'), save: $('b-save'),
   };
 
+  /*
+   * One row per dataset: which category tab it lives under, what its region
+   * picker means, and which target modes make sense for it. Modes are the
+   * source of truth for the form — a field only appears if the chosen mode
+   * uses it, so population never shows up for transit lines and membership
+   * groups never show up for cities.
+   */
   const DATASETS = [
-    { id: 'world-countries', label: 'Countries of the world', scope: 'continent', group: 'World' },
-    { id: 'admin1', label: 'States / provinces of a country', scope: 'country-admin1', group: 'World' },
-    { id: 'adm2', label: 'Counties / districts of a country', scope: 'country-adm2', group: 'World' },
-    { id: 'cities', label: 'Major world cities (map pins)', scope: 'cities', group: 'World' },
-    { id: 'geocities', label: 'All cities of a country (map pins)', scope: 'country-geocities', group: 'World' },
-    { id: 'us-counties', label: 'Counties (by state)', scope: 'us-state', group: 'United States' },
-    { id: 'us-townships', label: 'Townships & municipalities (by state)', scope: 'us-state', group: 'United States' },
-    { id: 'us-places', label: 'Cities & towns (by state)', scope: 'us-state', group: 'United States' },
-    { id: 'us-school-districts', label: 'School districts (by state)', scope: 'us-state', group: 'United States' },
-    { id: 'neighborhoods', label: 'Neighborhoods', scope: 'hood-city', group: 'City layers' },
-    { id: 'osm-transit-lines', label: 'Transit lines', scope: 'osm:transit-lines', group: 'City layers' },
-    { id: 'osm-transit-stations', label: 'Transit stations', scope: 'osm:transit-stations', group: 'City layers' },
-    { id: 'osm-major-roads', label: 'Major roads & highways', scope: 'osm:major-roads', group: 'City layers' },
-    { id: 'osm-waterways', label: 'Rivers & canals', scope: 'osm:waterways', group: 'City layers' },
-    { id: 'osm-trails', label: 'Trails & bike routes', scope: 'osm:trails', group: 'City layers' },
-    { id: 'osm-parks', label: 'Parks & gardens', scope: 'osm:parks', group: 'City layers' },
-    { id: 'osm-landmarks', label: 'Landmarks & museums', scope: 'osm:landmarks', group: 'City layers' },
-    { id: 'zips', label: 'ZIP codes (city area)', scope: 'zip-city', group: 'City layers' },
-    { id: 'custom', label: 'Custom packs', scope: 'custom', group: 'Custom' },
+    { id: 'world-countries', cat: 'world', label: 'Countries', scope: 'continent',
+      modes: ['independent', 'all', 'top', 'minPop', 'group', 'manual'] },
+    { id: 'admin1', cat: 'world', label: 'States & provinces', scope: 'country-admin1',
+      modes: ['all', 'manual'] },
+    { id: 'adm2', cat: 'world', label: 'Counties & districts', scope: 'country-adm2',
+      modes: ['all', 'manual'] },
+    { id: 'cities', cat: 'world', label: 'Major cities', scope: 'cities',
+      modes: ['top', 'capitals', 'minPop', 'manual'] },
+    { id: 'geocities', cat: 'world', label: 'All cities of one country',
+      scope: 'country-geocities', modes: ['top', 'minPop', 'manual'] },
+
+    { id: 'us-counties', cat: 'us', label: 'Counties', scope: 'us-state',
+      modes: ['all', 'top', 'minPop', 'manual'] },
+    { id: 'us-townships', cat: 'us', label: 'Townships & municipalities', scope: 'us-state',
+      modes: ['top', 'minPop', 'all', 'manual'] },
+    { id: 'us-places', cat: 'us', label: 'Cities & towns', scope: 'us-state',
+      modes: ['top', 'minPop', 'all', 'manual'] },
+    { id: 'us-school-districts', cat: 'us', label: 'School districts', scope: 'us-state',
+      modes: ['all', 'manual'] },
+
+    { id: 'neighborhoods', cat: 'city', label: 'Neighborhoods', scope: 'hood-city',
+      modes: ['all', 'manual'] },
+    { id: 'osm-transit-lines', cat: 'city', label: 'Transit lines', scope: 'osm:transit-lines',
+      modes: ['all', 'top', 'manual'] },
+    { id: 'osm-transit-stations', cat: 'city', label: 'Transit stations',
+      scope: 'osm:transit-stations', modes: ['top', 'all', 'manual'] },
+    { id: 'osm-major-roads', cat: 'city', label: 'Major roads & highways',
+      scope: 'osm:major-roads', modes: ['top', 'all', 'manual'] },
+    { id: 'osm-landmarks', cat: 'city', label: 'Landmarks & museums', scope: 'osm:landmarks',
+      modes: ['top', 'all', 'manual'] },
+    { id: 'osm-parks', cat: 'city', label: 'Parks & gardens', scope: 'osm:parks',
+      modes: ['top', 'all', 'manual'] },
+    { id: 'osm-waterways', cat: 'city', label: 'Rivers & canals', scope: 'osm:waterways',
+      modes: ['all', 'top', 'manual'] },
+    { id: 'osm-trails', cat: 'city', label: 'Trails & bike routes', scope: 'osm:trails',
+      modes: ['top', 'all', 'manual'] },
+    { id: 'zips', cat: 'city', label: 'ZIP codes', scope: 'zip-city',
+      modes: ['all', 'manual'] },
+
+    { id: 'custom', cat: 'custom', label: 'Your own packs', scope: 'custom',
+      modes: ['all', 'top', 'minPop', 'manual'] },
   ];
 
-  // which target modes make sense per dataset (population data isn't everywhere)
-  const MODES = {
-    'world-countries': ['independent', 'all', 'topPop', 'minPop', 'group', 'manual'],
-    'admin1': ['all', 'manual'],
-    'adm2': ['all', 'manual'],
-    'us-counties': ['all', 'topPop', 'minPop', 'manual'],
-    'us-townships': ['topPop', 'minPop', 'all', 'manual'],
-    'us-places': ['topPop', 'minPop', 'all', 'manual'],
-    'cities': ['topPop', 'capitals', 'minPop', 'manual'],
-    'geocities': ['topPop', 'minPop', 'manual'],
-    'neighborhoods': ['all', 'manual'],
-    'custom': ['all', 'topPop', 'minPop', 'manual'],
-    'us-school-districts': ['all', 'manual'],
-    'zips': ['all', 'manual'],
-    'osm-transit-lines': ['all', 'manual'],
-    'osm-transit-stations': ['all', 'manual'],
-    'osm-major-roads': ['all', 'manual'],
-    'osm-waterways': ['all', 'manual'],
-    'osm-trails': ['all', 'manual'],
-    'osm-parks': ['all', 'manual'],
-    'osm-landmarks': ['all', 'manual'],
-  };
+  const CATEGORIES = [
+    { id: 'world', label: 'World' },
+    { id: 'us', label: 'United States' },
+    { id: 'city', label: 'City layers' },
+    { id: 'custom', label: 'Custom' },
+  ];
+
   const MODE_LABELS = {
-    all: 'Everything in the region', independent: 'Independent countries',
-    topPop: 'Top N by population', minPop: 'Population at least…',
-    group: 'Members of a group', capitals: 'Capitals only', manual: 'Pick manually',
+    all: 'Everything in the region',
+    independent: 'Independent countries',
+    top: 'Top N by population',            // relabelled per dataset below
+    minPop: 'Population at least…',
+    group: 'Members of a group',
+    capitals: 'Capitals only',
+    manual: 'Pick manually',
   };
+  // datasets with no population: "top" ranks by prominence instead
+  const POP_DATASETS = new Set(['world-countries', 'cities', 'geocities',
+    'us-counties', 'us-townships', 'us-places', 'custom']);
+  const modeLabel = (mode, dsId) =>
+    mode === 'top' && !POP_DATASETS.has(dsId)
+      ? 'Top N most prominent' : MODE_LABELS[mode];
 
   const opt = (value, label) => {
     const o = document.createElement('option');
@@ -160,26 +191,31 @@
     return o;
   };
 
+  let activeCat = 'world';
+
   function initBuilder() {
-    const dsGroups = new Map(); // careful: `groups` (memberships) is in scope
-    for (const d of DATASETS) {
-      if (!dsGroups.has(d.group)) {
-        const og = document.createElement('optgroup');
-        og.label = d.group;
-        dsGroups.set(d.group, og);
-      }
-      dsGroups.get(d.group).appendChild(opt(d.id, d.label));
-    }
-    b.dataset.replaceChildren(...dsGroups.values());
+    b.cats.replaceChildren(...CATEGORIES.map((c) => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'cat-tab';
+      tab.role = 'tab';
+      tab.textContent = c.label;
+      tab.addEventListener('click', () => {
+        activeCat = c.id;
+        refreshCategory();
+      });
+      tab.dataset.cat = c.id;
+      return tab;
+    }));
     b.group.replaceChildren(...Object.keys(groups).map((g) => opt(g, g)));
     b.dataset.addEventListener('change', refreshBuilder);
-    b.scope.addEventListener('change', () => refreshModes(true));
-    b.mode.addEventListener('change', () => refreshFilterInputs(true));
+    b.scope.addEventListener('change', () => { refreshModes(true); });
+    b.mode.addEventListener('change', () => refreshFilterInputs());
     for (const input of [b.n, b.min, b.group]) {
       input.addEventListener('change', updatePreview);
     }
     b.manualSearch.addEventListener('input', filterManualList);
-    b.play.addEventListener('click', () => play(currentConfig()));
+    b.play.addEventListener('click', () => play(currentConfig(), 'builder'));
     b.save.addEventListener('click', () => {
       const cfg = currentConfig();
       cfg.id = 'custom-' + Date.now();
@@ -187,16 +223,30 @@
       renderLibrary();
       showView('home');
     });
+    refreshCategory();
+  }
+
+  const datasetsIn = (cat) => DATASETS.filter((d) => d.cat === cat);
+  const currentDataset = () =>
+    DATASETS.find((d) => d.id === b.dataset.value) || datasetsIn(activeCat)[0];
+
+  function refreshCategory() {
+    for (const tab of b.cats.children) {
+      tab.setAttribute('aria-selected', String(tab.dataset.cat === activeCat));
+    }
+    b.dataset.replaceChildren(...datasetsIn(activeCat).map((d) => opt(d.id, d.label)));
+    refreshBuilder();
   }
 
   function refreshBuilder() {
-    const ds = DATASETS.find((d) => d.id === b.dataset.value) || DATASETS[0];
+    const ds = currentDataset();
     const kind = ds.scope;
     b.scopeLabel.textContent = {
       continent: 'Region', 'country-admin1': 'Country', 'country-adm2': 'Country',
       'us-state': 'State', cities: 'Region', 'country-geocities': 'Country',
       'hood-city': 'City', custom: 'Pack', 'zip-city': 'City',
     }[kind] || (kind.startsWith('osm:') ? 'City' : 'Region');
+
     const options = [];
     if (kind === 'continent') {
       options.push(opt('', 'Whole world'));
@@ -227,21 +277,22 @@
       for (const c of index.menus.countries) options.push(opt('country:' + c.a3, c.name));
     }
     b.scope.replaceChildren(...options);
+    b.scope.parentElement.hidden = options.length <= 1 && !options[0]?.value;
     if (kind === 'us-state') b.scope.value = 'MA';
     refreshModes(false);
   }
 
-  function refreshModes(fromUser) {
-    const modes = MODES[b.dataset.value];
+  function refreshModes(keepMode) {
+    const ds = currentDataset();
     const prev = b.mode.value;
-    b.mode.replaceChildren(...modes.map((m) => opt(m, MODE_LABELS[m])));
-    if (fromUser && modes.includes(prev)) b.mode.value = prev;
-    refreshFilterInputs(false);
+    b.mode.replaceChildren(...ds.modes.map((m) => opt(m, modeLabel(m, ds.id))));
+    if (keepMode && ds.modes.includes(prev)) b.mode.value = prev;
+    refreshFilterInputs();
   }
 
   async function refreshFilterInputs() {
     const mode = b.mode.value;
-    b.nWrap.hidden = mode !== 'topPop';
+    b.nWrap.hidden = mode !== 'top';
     b.minWrap.hidden = mode !== 'minPop';
     b.groupWrap.hidden = mode !== 'group';
     b.manualWrap.hidden = mode !== 'manual';
@@ -250,21 +301,26 @@
   }
 
   function currentConfig() {
-    const ds = b.dataset.value;
-    let pack = ds, scope;
+    const ds = currentDataset();
+    let pack = ds.id, scope;
     const sv = b.scope.value;
-    if (ds === 'admin1' || ds === 'adm2' || ds === 'neighborhoods' || ds === 'custom' ||
-        ds === 'zips' || ds.startsWith('osm-')) {
-      pack = ds + '/' + sv;
+    if (['admin1', 'adm2', 'neighborhoods', 'custom', 'zips'].includes(ds.id) ||
+        ds.id.startsWith('osm-')) {
+      pack = ds.id + '/' + sv;
+    } else if (ds.id === 'geocities') {
+      pack = 'geocities/' + sv;
+      scope = { country: sv };
+    } else if (ds.id.startsWith('us-')) {
+      pack = ds.id + '/' + sv;
+    } else if (sv.startsWith('continent:')) {
+      scope = { continent: sv.slice(10) };
+    } else if (sv.startsWith('country:')) {
+      scope = { country: sv.slice(8) };
     }
-    else if (ds === 'geocities') { pack = 'geocities/' + sv; scope = { country: sv }; }
-    else if (ds.startsWith('us-')) pack = ds + '/' + sv;
-    else if (sv.startsWith('continent:')) scope = { continent: sv.slice(10) };
-    else if (sv.startsWith('country:')) scope = { country: sv.slice(8) };
 
     const mode = b.mode.value;
     const select = { mode };
-    if (mode === 'topPop') select.n = Math.max(2, +b.n.value || 20);
+    if (mode === 'top') select.n = Math.max(2, +b.n.value || 20);
     if (mode === 'minPop') select.min = +b.min.value || 0;
     if (mode === 'group') select.group = b.group.value;
     if (mode === 'manual') {
@@ -276,15 +332,17 @@
   }
 
   function suggestTitle() {
-    const dsLabel = DATASETS.find((d) => d.id === b.dataset.value).label;
-    const scopeLabel = b.scope.selectedOptions[0]?.textContent || '';
-    const modeLabel = MODE_LABELS[b.mode.value];
-    if (b.mode.value === 'topPop') {
-      return scopeLabel + ': top ' + (+b.n.value || 20) + ' by population';
+    const ds = currentDataset();
+    const scopeLabel = b.scope.parentElement.hidden
+      ? '' : (b.scope.selectedOptions[0]?.textContent || '');
+    const mode = b.mode.value;
+    if (mode === 'top') {
+      return (scopeLabel ? scopeLabel + ': ' : '') + 'top ' + (+b.n.value || 20) +
+        ' ' + ds.label.toLowerCase();
     }
-    if (b.mode.value === 'group') return b.group.value + ' members';
-    if (b.mode.value === 'capitals') return 'Capitals — ' + (scopeLabel || 'World');
-    return (scopeLabel ? scopeLabel + ' — ' : '') + dsLabel + ' (' + modeLabel + ')';
+    if (mode === 'group') return b.group.value + ' members';
+    if (mode === 'capitals') return 'Capitals — ' + (scopeLabel || 'World');
+    return (scopeLabel ? scopeLabel + ' — ' : '') + ds.label;
   }
 
   let previewSeq = 0;
@@ -350,7 +408,6 @@
           .catch(() => self.__MAPGAMES_INLINE__?.['data/presets.json'] || []),
       ]);
       initBuilder();
-      refreshBuilder();
       renderLibrary();
       for (const chip of document.querySelectorAll('.play-chip[data-play]')) {
         chip.addEventListener('click', () => {

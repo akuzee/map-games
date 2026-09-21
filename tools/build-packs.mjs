@@ -1013,6 +1013,41 @@ function ensureReference(index, slug, bbox) {
   return id;
 }
 
+// Grid index of transit-line vertices, so a station can be scored by how many
+// distinct lines run through it — the closest cheap stand-in for "big station".
+function transitIndex(file) {
+  if (!fs.existsSync(file)) return null;
+  let elements;
+  try { elements = JSON.parse(fs.readFileSync(file, 'utf8')).elements; }
+  catch { return null; }
+  const cell = 0.004; // ~400m
+  const grid = new Map();
+  for (const e of elements) {
+    const name = e.tags?.ref || e.tags?.name;
+    if (!name) continue;
+    for (const m of e.members || []) {
+      if (m.type !== 'way' || !m.geometry) continue;
+      for (const p of m.geometry) {
+        const k = Math.round(p.lon / cell) + ':' + Math.round(p.lat / cell);
+        (grid.get(k) || grid.set(k, new Set()).get(k)).add(name);
+      }
+    }
+  }
+  return { cell, grid };
+}
+
+function linesNear(index, lon, lat) {
+  if (!index) return 0;
+  const names = new Set();
+  const cx = Math.round(lon / index.cell), cy = Math.round(lat / index.cell);
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (const n of index.grid.get((cx + dx) + ':' + (cy + dy)) || []) names.add(n);
+    }
+  }
+  return names.size;
+}
+
 function emitOsm(index) {
   const osmDir = path.join(CACHE, 'osm');
   if (!fs.existsSync(osmDir)) return;
@@ -1053,18 +1088,23 @@ function emitOsm(index) {
         }
         feats = Object.entries(byName).map(([name, v]) => ({
           id: 'tl:' + name, name, pop: null, color: v.color,
+          rank: lineLen(v.lines),
           geometry: { type: 'MultiLineString', coordinates: simpLines(v.lines) },
         }));
       } else if (layer === 'major-roads' || layer === 'waterways') {
+        const CLASS_WEIGHT = { motorway: 3, trunk: 2.2, primary: 1 };
         const byName = {};
         for (const e of elements) {
           const name = e.tags?.name || e.tags?.ref;
           if (!name || !e.geometry) continue;
-          (byName[name] ||= []).push(wayCoords(e.geometry));
+          const g = (byName[name] ||= { lines: [], w: 1 });
+          g.lines.push(wayCoords(e.geometry));
+          g.w = Math.max(g.w, CLASS_WEIGHT[e.tags?.highway] || 1);
         }
-        feats = Object.entries(byName).map(([name, lines]) => ({
-          id: layer + ':' + name, name, pop: null, len: lineLen(lines),
-          geometry: { type: 'MultiLineString', coordinates: simpLines(lines) },
+        feats = Object.entries(byName).map(([name, g]) => ({
+          id: layer + ':' + name, name, pop: null,
+          len: lineLen(g.lines), rank: lineLen(g.lines) * g.w,
+          geometry: { type: 'MultiLineString', coordinates: simpLines(g.lines) },
         }));
       } else if (layer === 'trails') {
         const byName = {};
@@ -1077,17 +1117,31 @@ function emitOsm(index) {
           if (lines.length) (byName[name] ||= []).push(...lines);
         }
         feats = Object.entries(byName).map(([name, lines]) => ({
-          id: 'tr:' + name, name, pop: null, len: lineLen(lines),
+          id: 'tr:' + name, name, pop: null,
+          len: lineLen(lines), rank: lineLen(lines),
           geometry: { type: 'MultiLineString', coordinates: simpLines(lines) },
         }));
       } else if (layer === 'transit-stations' || layer === 'landmarks') {
+        // Prominence proxies: a station served by more lines is a bigger station;
+        // a landmark someone wrote a Wikipedia article about is a bigger landmark.
+        const lineIndex = layer === 'transit-stations'
+          ? transitIndex(path.join(osmDir, city.slug, 'transit-lines.json')) : null;
+        const TYPE_WEIGHT = (t) => t.aeroway === 'aerodrome' ? 100
+          : t.amenity === 'university' ? 70
+            : t.leisure === 'stadium' ? 65
+              : t.tourism === 'museum' ? 60
+                : t.tourism === 'zoo' || t.tourism === 'aquarium' ? 55 : 40;
         const seen = new Set();
         for (const e of elements) {
-          const name = e.tags?.name;
+          const t = e.tags || {};
+          const name = t.name;
           const lon = e.lon ?? e.center?.lon, lat = e.lat ?? e.center?.lat;
           if (!name || lon == null || seen.has(name)) continue;
           seen.add(name);
-          feats.push({ id: 'n' + e.id, name, pop: null, lon, lat });
+          const rank = layer === 'transit-stations'
+            ? 1 + linesNear(lineIndex, lon, lat) * 10 + (t.wikidata ? 2 : 0)
+            : TYPE_WEIGHT(t) + (t.wikipedia ? 40 : 0) + (t.wikidata ? 15 : 0);
+          feats.push({ id: 'n' + e.id, name, pop: null, rank, lon, lat });
         }
       } else if (layer === 'parks') {
         const seen = new Set();
@@ -1104,9 +1158,15 @@ function emitOsm(index) {
           }
           if (!rings.length) continue;
           seen.add(name);
+          const ring = rings[0];
+          let a2 = 0;
+          for (let i = 0; i < ring.length - 1; i++) {
+            a2 += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+          }
           feats.push({
-            id: 'p' + e.id, name, pop: null, len: lineLen(rings),
-            geometry: { type: 'Polygon', coordinates: [rnd4(dpSimplify(rings[0], 1e-4))] },
+            id: 'p' + e.id, name, pop: null,
+            len: lineLen(rings), rank: Math.abs(a2 / 2),
+            geometry: { type: 'Polygon', coordinates: [rnd4(dpSimplify(ring, 1e-4))] },
           });
         }
       }

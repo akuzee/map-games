@@ -53,9 +53,14 @@
     switch (s.mode) {
       case 'all':
         return features;
-      case 'topPop':
-        return features.filter((f) => f.pop != null)
-          .sort((a, b) => b.pop - a.pop).slice(0, s.n || 20);
+      case 'top':
+      case 'topPop': {
+        // population where we have it, prominence rank where we don't
+        // (roads by length and class, landmarks by type + Wikipedia, etc.)
+        const weight = (f) => f.pop ?? f.rank ?? null;
+        return features.filter((f) => weight(f) != null)
+          .sort((a, b) => weight(b) - weight(a)).slice(0, s.n || 20);
+      }
       case 'minPop':
         return features.filter((f) => (f.pop ?? 0) >= (s.min || 0));
       case 'group': {
