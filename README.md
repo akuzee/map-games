@@ -55,6 +55,15 @@ tools/test-resolve.mjs node smoke test: resolves every preset through real code 
 tools/build-artifact.mjs single-file bundle with a curated pack subset (dist/)
 ```
 
+## Documentation
+
+- **[DECISIONS.md](DECISIONS.md)** — why the project is built this way, and the traps
+  that shaped it. Read before changing architecture.
+- **[CLAUDE.md](CLAUDE.md)** — orientation for picking the codebase up cold: layout,
+  conventions, how to test and ship.
+- **[DATA.md](DATA.md)** — every data source, the pipeline, and bringing your own.
+- **[BACKLOG.md](BACKLOG.md)** — deferred ideas, each with the reason it was deferred.
+
 ## Data
 
 **Full documentation in [DATA.md](DATA.md)** — every source (all keyless bulk downloads,
