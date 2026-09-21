@@ -893,25 +893,74 @@ function refLayersFromElements(elements, bbox) {
   return { water: cap(water, 250), parks: cap(parks, 300), roads: cap(roads, 700) };
 }
 
-function referenceFor(slug, bbox) {
-  if (slug in refCache) return refCache[slug];
-  let elements = null;
+// Every cached download that could serve as a reference source, with the area
+// it covers — so a neighbourhood-scale quiz (the Bronx) can reuse the download
+// made for the city that contains it (New York) instead of fetching again.
+let refSources = null;
+function referenceSources() {
+  if (refSources) return refSources;
+  refSources = [];
+  const record = (name, elements) => {
+    let b = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
+    for (const e of elements) {
+      const bb = e.bounds;
+      if (!bb) continue;
+      b.minLon = Math.min(b.minLon, bb.minlon);
+      b.maxLon = Math.max(b.maxLon, bb.maxlon);
+      b.minLat = Math.min(b.minLat, bb.minlat);
+      b.maxLat = Math.max(b.maxLat, bb.maxlat);
+    }
+    if (isFinite(b.minLon)) refSources.push({ name, bbox: b, elements });
+  };
 
-  const bm = path.join(CACHE, 'basemap', slug + '.json');
-  if (fs.existsSync(bm)) {
-    try { elements = JSON.parse(fs.readFileSync(bm, 'utf8')).elements; } catch { /* bad json */ }
+  const bmDir = path.join(CACHE, 'basemap');
+  if (fs.existsSync(bmDir)) {
+    for (const f of fs.readdirSync(bmDir).filter((n) => n.endsWith('.json'))) {
+      try { record(f.replace('.json', ''), JSON.parse(fs.readFileSync(path.join(bmDir, f), 'utf8')).elements); }
+      catch { /* bad json */ }
+    }
   }
-  if (!elements) {
-    // fall back to the per-city quiz layers fetched by the `osm` step
-    const dir = path.join(CACHE, 'osm', slug);
-    if (fs.existsSync(dir)) {
-      elements = [];
+  const osmDir = path.join(CACHE, 'osm');
+  if (fs.existsSync(osmDir)) {
+    for (const city of fs.readdirSync(osmDir)) {
+      const elements = [];
       for (const layer of ['waterways', 'parks', 'major-roads']) {
-        const f = path.join(dir, layer + '.json');
+        const f = path.join(osmDir, city, layer + '.json');
         if (!fs.existsSync(f)) continue;
         try { elements.push(...JSON.parse(fs.readFileSync(f, 'utf8')).elements); }
         catch { /* bad json */ }
       }
+      if (elements.length) record(city, elements);
+    }
+  }
+  return refSources;
+}
+
+// how much of `want` lies inside `have`, 0..1
+function coverage(have, want) {
+  const w = Math.max(0, Math.min(have.maxLon, want.maxLon) - Math.max(have.minLon, want.minLon));
+  const h = Math.max(0, Math.min(have.maxLat, want.maxLat) - Math.max(have.minLat, want.minLat));
+  const area = (want.maxLon - want.minLon) * (want.maxLat - want.minLat);
+  return area > 0 ? (w * h) / area : 0;
+}
+
+function referenceFor(slug, bbox) {
+  if (slug in refCache) return refCache[slug];
+  let elements = null;
+
+  const own = referenceSources().find((s) => s.name === slug);
+  if (own) elements = own.elements;
+  else if (bbox) {
+    // no download of our own — borrow the best-covering one we already have
+    let best = null, bestCov = 0.8; // must cover most of the quiz to be worth it
+    for (const s of referenceSources()) {
+      const cov = coverage(s.bbox, bbox);
+      if (cov > bestCov) { bestCov = cov; best = s; }
+    }
+    if (best) {
+      elements = best.elements;
+      console.log('reference:', slug, 'reuses', best.name,
+        '(' + Math.round(bestCov * 100) + '% cover)');
     }
   }
   if (!elements || !elements.length) return refCache[slug] = null;

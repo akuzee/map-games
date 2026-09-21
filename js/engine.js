@@ -77,15 +77,27 @@
       layer.appendChild(p);
     }
 
-    // orientation underlay, above the land backdrop and below the quiz itself:
-    // water, then parks, then roads (so a road crossing a park stays visible)
+    /*
+     * Layer order matters. The reference sits *above* region fills so rivers,
+     * parks and highways read inside the quiz area too (not just around it),
+     * then every region's border is redrawn on top so the underlay can never
+     * blur the boundaries you're being asked to click. Line and point targets
+     * come last — they are the quiz, so nothing covers them.
+     */
+    const fillLayer = document.createElementNS(SVG_NS, 'g');
+    const refLayer = document.createElementNS(SVG_NS, 'g');
+    const outlineLayer = document.createElementNS(SVG_NS, 'g');
+    const markLayer = document.createElementNS(SVG_NS, 'g');
+    const hitLayer = document.createElementNS(SVG_NS, 'g');
+    layer.append(fillLayer, refLayer, outlineLayer, markLayer, hitLayer);
+
     for (const name of ['water', 'parks', 'roads']) {
       for (const s of (scene.reference || {})[name] || []) {
         const p = document.createElementNS(SVG_NS, 'path');
         p.setAttribute('d', s.d);
         p.classList.add('ref', 'ref--' + name);
         if (s.line) p.classList.add('ref--stroke');
-        layer.appendChild(p);
+        refLayer.appendChild(p);
       }
     }
 
@@ -93,7 +105,6 @@
     const sorted = [...scene.shapes].sort(
       (a, b) => Number(targetSet.has(a.id)) - Number(targetSet.has(b.id))
     );
-    const hitLayer = document.createElementNS(SVG_NS, 'g');
     for (const s of sorted) {
       nameById.set(s.id, s.name);
       let node;
@@ -125,9 +136,17 @@
         node.classList.add('town', 'town--bg');
         node.dataset.reveal = s.name;
       }
-      layer.appendChild(node);
+      if (s.d !== undefined && !s.line) {
+        fillLayer.appendChild(node);
+        // border redrawn above the reference; never interactive
+        const outline = document.createElementNS(SVG_NS, 'path');
+        outline.setAttribute('d', s.d);
+        outline.classList.add('town-outline');
+        outlineLayer.appendChild(outline);
+      } else {
+        markLayer.appendChild(node);
+      }
     }
-    layer.appendChild(hitLayer);
     wireMapEvents();
     applyView();
   }

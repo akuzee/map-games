@@ -561,7 +561,17 @@ circle.town {
 .legend .k3 { background: var(--missed); }
 
 /* ---------- reference underlay (orientation only, never interactive) ---------- */
+/* Painted over the region fills, so it also reads inside the quiz area; the
+   region borders are redrawn above it (.town-outline) to stay legible. */
 .ref { pointer-events: none; }
+.town-outline {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
 .ref--water { fill: var(--ref-water); stroke: none; }
 .ref--parks { fill: var(--ref-park); stroke: none; }
 .ref--roads { fill: none; }
