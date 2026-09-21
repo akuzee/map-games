@@ -838,9 +838,28 @@ function cityContext(city) {
 const refCache = {};
 
 function refLayersFromElements(elements, bbox) {
-  const water = [], parks = [], roads = [];
-  const inBox = (pts) => !bbox || pts.some(([x, y]) =>
+  const span = Math.max(bbox.maxLon - bbox.minLon, bbox.maxLat - bbox.minLat);
+  const mapArea = (bbox.maxLon - bbox.minLon) * (bbox.maxLat - bbox.minLat);
+  const inBox = (pts) => pts.some(([x, y]) =>
     x > bbox.minLon && x < bbox.maxLon && y > bbox.minLat && y < bbox.maxLat);
+  const len = (pts) => {
+    let s = 0;
+    for (let i = 1; i < pts.length; i++) {
+      s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    }
+    return s;
+  };
+  const area = (ring) => {
+    let a = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+      a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    }
+    return Math.abs(a / 2);
+  };
+
+  const roadsByName = new Map(); // name -> [segments]
+  const riversByName = new Map();
+  const lakes = [], parks = [];
 
   for (const e of elements) {
     const t = e.tags || {};
@@ -851,46 +870,55 @@ function refLayersFromElements(elements, bbox) {
         .filter((m) => m.type === 'way' && m.geometry && (m.role === 'outer' || !m.role))
         .map((m) => wayCoords(m.geometry));
     }
+    rings = rings.filter((r) => r.length >= 2 && inBox(r));
     if (!rings.length) continue;
 
-    if (t.natural === 'water' || t.waterway === 'river' || t.waterway === 'canal') {
-      const closed = t.natural === 'water';
-      for (const r of (closed ? assembleRings(rings) : rings)) {
-        if (r.length < 2 || !inBox(r)) continue;
-        water.push(closed
-          ? { type: 'Polygon', coordinates: [rnd4(dpSimplify(r, 1.2e-4))] }
-          : { type: 'LineString', coordinates: rnd4(dpSimplify(r, 1.2e-4)) });
-      }
+    if (t.natural === 'water') {
+      for (const r of assembleRings(rings)) lakes.push(r);
+    } else if (t.waterway === 'river' || t.waterway === 'canal') {
+      const key = t.name || t.waterway + ':' + (t.ref || 'unnamed');
+      (riversByName.get(key) || riversByName.set(key, []).get(key)).push(...rings);
     } else if (t.leisure === 'park' || t.leisure === 'garden') {
-      for (const r of assembleRings(rings)) {
-        if (!inBox(r)) continue;
-        parks.push({ type: 'Polygon', coordinates: [rnd4(dpSimplify(r, 1.2e-4))] });
-      }
+      for (const r of assembleRings(rings)) parks.push(r);
     } else if (t.highway) {
-      for (const r of rings) {
-        if (r.length < 2 || !inBox(r)) continue;
-        roads.push({ type: 'LineString', coordinates: rnd4(dpSimplify(r, 2e-4)) });
-      }
+      // Segments share a name across a whole corridor; merging them turns
+      // thousands of fragments into a few dozen recognisable roads, and makes
+      // "is this road long enough to orient by?" a meaningful question.
+      const key = t.highway + '|' + (t.name || t.ref || 'unnamed-' + e.id);
+      (roadsByName.get(key) || roadsByName.set(key, []).get(key)).push(...rings);
     }
   }
-  // An underlay must read at a glance and stay small: keep the biggest features
-  // of each kind (longest rivers/roads, largest parks) and drop the long tail.
-  const extent = (g) => {
-    const pts = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const [x, y] of pts) {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-    return (maxX - minX) + (maxY - minY);
-  };
-  const cap = (arr, n) => arr.length <= n ? arr
-    : arr.map((g) => [extent(g), g]).sort((a, b) => b[0] - a[0]).slice(0, n)
-      .map(([, g]) => g);
 
-  return { water: cap(water, 250), parks: cap(parks, 300), roads: cap(roads, 700) };
+  // Size thresholds are relative to the map, so a dense city and a sparse one
+  // both end up with a readable handful rather than a fixed count of clutter.
+  const rankedLines = (byName, minLen, cap, tol) => [...byName.values()]
+    .map((segs) => ({ segs, l: segs.reduce((s, r) => s + len(r), 0) }))
+    .filter((r) => r.l >= minLen * span)
+    .sort((a, b) => b.l - a.l)
+    .slice(0, cap)
+    .map((r) => ({
+      type: 'MultiLineString',
+      coordinates: r.segs.map((seg) => rnd4(dpSimplify(seg, tol))).filter((l) => l.length >= 2),
+    }));
+
+  const rankedPolys = (rings, minArea, cap, tol) => rings
+    .map((r) => ({ r, a: area(r) }))
+    .filter((x) => x.a >= minArea * mapArea)
+    .sort((a, b) => b.a - a.a)
+    .slice(0, cap)
+    .map((x) => ({ type: 'Polygon', coordinates: [rnd4(dpSimplify(x.r, tol))] }));
+
+  // Thresholds are deliberately loose and the caps do most of the work: rank
+  // everything by size, keep the top handful. Tuned against Grand Rapids, where
+  // ~15 roads and ~12 parks read as a map rather than as noise.
+  return {
+    water: [
+      ...rankedPolys(lakes, 0.00002, 150, 1.2e-4),
+      ...rankedLines(riversByName, 0.05, 50, 1.2e-4),
+    ],
+    parks: rankedPolys(parks, 0.0004, 12, 1.2e-4),
+    roads: rankedLines(roadsByName, 0.22, 45, 2.5e-4),
+  };
 }
 
 // Every cached download that could serve as a reference source, with the area

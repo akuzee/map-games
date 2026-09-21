@@ -17,9 +17,9 @@
   --solved-2: #d07a2e;
   --missed: #b3402f;
   --flash: #b3402f;
-  --ref-water: #c3d9de;
-  --ref-park: #d8e3cf;
-  --ref-road: #ddd3c2;
+  --ref-water: #d2dee0;
+  --ref-park: #dfe4da;
+  --ref-road: #ddd8cd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,9 +41,9 @@
     --solved-2: #cf7c31;
     --missed: #c05242;
     --flash: #c05242;
-    --ref-water: #1d3138;
-    --ref-park: #2a3a2c;
-    --ref-road: #3a4440;
+    --ref-water: #1f2b2e;
+    --ref-park: #283029;
+    --ref-road: #333b38;
   }
 }
 :root[data-theme="dark"] {
@@ -64,9 +64,9 @@
   --solved-2: #cf7c31;
   --missed: #c05242;
   --flash: #c05242;
-  --ref-water: #1d3138;
-  --ref-park: #2a3a2c;
-  --ref-road: #3a4440;
+  --ref-water: #1f2b2e;
+  --ref-park: #283029;
+  --ref-road: #333b38;
 }
 
 /* ---------- Frame ---------- */
@@ -578,13 +578,13 @@ circle.town {
 .ref--water.ref--stroke {
   fill: none;
   stroke: var(--ref-water);
-  stroke-width: 2.5px;
+  stroke-width: 2px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 .ref--roads.ref--stroke {
   stroke: var(--ref-road);
-  stroke-width: 1.4px;
+  stroke-width: 1.2px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
