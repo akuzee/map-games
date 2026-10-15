@@ -23,7 +23,9 @@
   let hitById = new Map(); // for line targets: invisible fat stroke that takes the click
   let circles = [];
   let home = null, view = null, minW = 0;
-  let drag = null;
+  let drag = null;              // one pointer down: pan (or a click, if it never moves)
+  let pinch = null;             // two pointers down: {d, mx, my} of the last frame
+  const pointers = new Map();   // pointerId → {x, y} for every pointer currently down
 
   let quiz = null;
   let order = [], idx = 0, attempts = 0, results = new Map();
@@ -69,6 +71,8 @@
     nameById = new Map();
     hitById = new Map();
     circles = [];
+    pointers.clear();
+    drag = pinch = null;
 
     for (const d of scene.context) {
       const p = document.createElementNS(SVG_NS, 'path');
@@ -181,33 +185,75 @@
     const r = svg.getBoundingClientRect();
     zoomAt(r.left + r.width / 2, r.top + r.height / 2, f);
   }
+  // screen px per map unit at the current view
+  function screenScale() {
+    const r = svg.getBoundingClientRect();
+    return Math.min(r.width / view.w, r.height / view.h);
+  }
+  function pinchFrame() {
+    const [a, b] = pointers.values();
+    return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
+  // (re)anchor a one-finger pan at the pointer that's still down
+  function startDrag(moved) {
+    const [p] = pointers.values();
+    drag = { sx: p.x, sy: p.y, view0: { ...view }, moved };
+  }
 
   function wireMapEvents() {
     svg.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       zoomAt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * 0.002));
     }, { passive: false });
+    // Safari's proprietary pinch events zoom the page unless cancelled, even
+    // with touch-action: none; the pointer events below do the real work
+    for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+      el.map.addEventListener(type, (ev) => ev.preventDefault());
+    }
     svg.addEventListener('pointerdown', (ev) => {
-      drag = { sx: ev.clientX, sy: ev.clientY, view0: { ...view }, moved: false };
+      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       try { svg.setPointerCapture(ev.pointerId); } catch { /* no active pointer */ }
+      if (pointers.size === 1) startDrag(false);
+      else if (pointers.size === 2) { pinch = pinchFrame(); drag.moved = true; }
+      else pinch = null; // three or more fingers: ignore until one lifts
     });
     svg.addEventListener('pointermove', (ev) => {
+      if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pointers.size === 2) {
+        // scale about the midpoint, then follow the midpoint — incremental, so
+        // each frame's zoom and pan compose without tracking a gesture origin
+        const now = pinchFrame();
+        if (pinch && pinch.d > 0 && now.d > 0) {
+          zoomAt(now.mx, now.my, now.d / pinch.d);
+          const s = screenScale();
+          view.x -= (now.mx - pinch.mx) / s;
+          view.y -= (now.my - pinch.my) / s;
+          applyView();
+        }
+        pinch = now;
+        return;
+      }
       if (!drag) { updateHoverLabel(ev); return; }
+      if (pointers.size !== 1) return;
       const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
       if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
       if (!drag.moved) return;
-      const r = svg.getBoundingClientRect();
-      const s = Math.min(r.width / view.w, r.height / view.h);
+      const s = screenScale();
       view.x = drag.view0.x - dx / s;
       view.y = drag.view0.y - dy / s;
       applyView();
     });
-    svg.addEventListener('pointerup', (ev) => {
+    const release = (ev, tap) => {
+      pointers.delete(ev.pointerId);
+      if (pointers.size === 1) { pinch = null; startDrag(true); return; }
+      if (pointers.size > 1) { pinch = pointers.size === 2 ? pinchFrame() : null; return; }
       const wasDrag = drag && drag.moved;
       drag = null;
-      if (!wasDrag) handleClick(ev);
-    });
-    svg.addEventListener('pointercancel', () => { drag = null; });
+      pinch = null;
+      if (tap && !wasDrag) handleClick(ev);
+    };
+    svg.addEventListener('pointerup', (ev) => release(ev, true));
+    svg.addEventListener('pointercancel', (ev) => release(ev, false));
     svg.addEventListener('pointerleave', () => { el.hoverLabel.hidden = true; });
   }
 

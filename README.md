@@ -5,9 +5,9 @@ provinces, US counties and townships and ZIP codes, and city layers like neighbo
 transit lines, major roads, parks and landmarks.
 
 Pick what to quiz, scope it to a region, then choose a level of detail (Quick / Standard /
-Everything) or a precise filter ("top 20 by population", "NATO members", "capitals only",
-hand-picked). ~1,350 data packs, 18 presets, and an in-app builder; custom quizzes save to
-your library.
+Everything) or a precise filter ("top 20 by population", "ranks 16–50", "NATO members",
+"capitals only", hand-picked). ~1,350 data packs, 18 presets, and an in-app builder; custom
+quizzes save to your library.
 
 ## Run
 
@@ -37,7 +37,7 @@ but that takes hours and leans on volunteer-run servers, so prefer the download.
 - 1st try = green, 2nd = yellow, 3rd = orange. After 3 misses the answer is revealed in red.
 - A wrong click briefly names the thing you actually clicked — misses teach you the map.
 - Muted shapes are context only (not in the quiz) and aren't clickable.
-- Scroll to zoom, drag to pan. Hovering solved/revealed shapes shows their name.
+- Scroll or pinch to zoom, drag to pan. Hovering solved/revealed shapes shows their name.
 - At the end: play again with everything, or retry only what you missed.
 
 ## Project layout

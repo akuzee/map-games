@@ -76,13 +76,18 @@
 * { box-sizing: border-box; margin: 0; }
 
 body {
+  /* dvh tracks the visible area as mobile browser chrome shows/hides; 100vh on
+     iOS is the chrome-collapsed height, so the page overflows, Safari scrolls
+     it, and the top of the header disappears mid-game */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   font-family: "Public Sans", "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* ---------- Title-block header ---------- */
@@ -403,6 +408,8 @@ section h2 {
 }
 .detail-scale span[data-active="true"] { color: var(--accent); font-weight: 600; }
 .field-note { font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.4rem; }
+.rank-range { display: flex; gap: 0.6rem; }
+.rank-range label { flex: 1; }
 
 #b-manual-list {
   max-height: 14rem;
@@ -730,4 +737,30 @@ circle.town {
   .masthead p { display: none; }
   .prompt strong { font-size: 1.3rem; }
   .stats { gap: 0.8rem; }
+
+  /* In play the header is two rows: stats and buttons, then the prompt on a
+     full-width row of its own. Flex-wrap gave three rows with the prompt first,
+     and the masthead and quiz title aren't worth the map height they cost. */
+  .mode-play header {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: "stats edit exit" "prompt prompt prompt";
+    align-items: center;
+    row-gap: 0.5rem;
+  }
+  .mode-play .play-hud { display: contents; }
+  .mode-play .masthead, .hud-quiz { display: none; }
+  .stats { grid-area: stats; }
+  .stat { text-align: left; }
+  #btn-back-play { grid-area: edit; }
+  #btn-exit-play { grid-area: exit; }
+  .mode-play .ghost-btn { padding: 0.4rem 0.7rem; font-size: 0.8rem; }
+  .prompt {
+    grid-area: prompt;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.4rem 0.55rem;
+  }
+  .prompt .tries { min-width: 0; }
 }

@@ -86,6 +86,59 @@
     return (lon) => ((((lon - g) % 360) + 360) % 360) - 180;
   }
 
+  // Sutherland–Hodgman against one vertical line: the part of a closed ring
+  // with x <= bound (keepLeft) or x >= bound. A half-plane is convex, so the
+  // result is a single valid ring (possibly empty).
+  function clipRing(ring, bound, keepLeft) {
+    const inside = (p) => (keepLeft ? p[0] <= bound : p[0] >= bound);
+    const cross = (a, b) => {
+      const t = (bound - a[0]) / (b[0] - a[0]);
+      return [bound, a[1] + t * (b[1] - a[1])];
+    };
+    const out = [];
+    let prev = ring[ring.length - 1];
+    for (const cur of ring) {
+      if (inside(cur)) {
+        if (!inside(prev)) out.push(cross(prev, cur));
+        out.push(cur);
+      } else if (inside(prev)) out.push(cross(prev, cur));
+      prev = cur;
+    }
+    return out;
+  }
+
+  /*
+   * A geometry as drawable parts in cut-space longitude. A ring the cut
+   * meridian passes through (Russia or the US behind a Pacific-centred map)
+   * would otherwise smear a stripe across the map, since its two halves land
+   * on opposite edges. Unwrap such a ring so it's continuous, then clip one
+   * copy to each edge — the shape renders as two pieces, one per edge.
+   */
+  function cutParts(geometry, cut) {
+    const parts = [];
+    eachPart(geometry, (part, isRing) => {
+      const pts = part.map((c) => [cut(c[0]), c[1]]);
+      if (!isRing) { parts.push({ pts, ring: false }); return; }
+      let lo = Infinity, hi = -Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        if (i > 0) {
+          const d = pts[i][0] - pts[i - 1][0];
+          if (d > 180) pts[i][0] -= 360;
+          else if (d < -180) pts[i][0] += 360;
+        }
+        if (pts[i][0] < lo) lo = pts[i][0];
+        if (pts[i][0] > hi) hi = pts[i][0];
+      }
+      if (lo >= -180 && hi <= 180) { parts.push({ pts, ring: true }); return; }
+      for (const off of [-360, 0, 360]) {
+        const shifted = pts.map((p) => [p[0] + off, p[1]]);
+        const piece = clipRing(clipRing(shifted, 180, true), -180, false);
+        if (piece.length >= 3) parts.push({ pts: piece, ring: true });
+      }
+    });
+    return parts;
+  }
+
   /*
    * Build a render scene from normalized pack features.
    *   features: [{id, name, geometry}] or [{id, name, lon, lat}] (points)
@@ -99,17 +152,6 @@
     // the antimeridian cut comes from the quiz features alone — context can span
     // the globe (e.g. countries behind a US map) and would erase the gap
     const cut = lonCut(features);
-    // drop context shapes the cut meridian passes through (they'd smear across the map)
-    context = (context || []).filter((f) => {
-      let minLon = Infinity, maxLon = -Infinity;
-      eachPart(f.geometry, (part) => {
-        for (const c of part) {
-          if (c[0] < minLon) minLon = c[0];
-          if (c[0] > maxLon) maxLon = c[0];
-        }
-      });
-      return cut(minLon) < cut(maxLon);
-    });
     const fit = opts?.bounds;
 
     let b;
@@ -132,7 +174,6 @@
     }
     const world = (b.maxLon - b.minLon) > 110 || (b.maxLat - b.minLat) > 65;
     const project = world ? naturalEarth1 : equirectCos((b.minLat + b.maxLat) / 2);
-    const raw = (lon, lat) => project(cut(lon), lat);
 
     // fit box: sample the bounds rectangle's edges through the projection
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -151,21 +192,19 @@
     }
     const scale = width / (maxX - minX);
     const height = (maxY - minY) * scale;
-    const px = (lon, lat) => {
-      const [x, y] = raw(lon, lat);
-      return [(x - minX) * scale, (maxY - y) * scale];
+    // cut-space longitude in, screen px out; px() is the raw-longitude version
+    const pxCut = (x, lat) => {
+      const [X, Y] = project(x, lat);
+      return [(X - minX) * scale, (maxY - Y) * scale];
     };
+    const px = (lon, lat) => pxCut(cut(lon), lat);
 
-    const toPath = (geometry) => {
-      const parts = [];
-      eachPart(geometry, (part, isRing) => {
-        parts.push('M' + part.map((c) => {
-          const [x, y] = px(c[0], c[1]);
-          return x.toFixed(2) + ' ' + y.toFixed(2);
-        }).join('L') + (isRing ? 'Z' : ''));
-      });
-      return parts.join('');
-    };
+    const toPath = (geometry) => cutParts(geometry, cut).map(({ pts, ring }) =>
+      'M' + pts.map(([x, lat]) => {
+        const [X, Y] = pxCut(x, lat);
+        return X.toFixed(2) + ' ' + Y.toFixed(2);
+      }).join('L') + (ring ? 'Z' : '')
+    ).join('');
 
     const shapes = features.map((f) => {
       if (f.geometry) {

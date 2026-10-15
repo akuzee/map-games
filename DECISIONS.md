@@ -61,8 +61,11 @@ country scale, the Natural Earth projection beyond ~110° longitude or ~65° lat
 globe. Two rules learned the hard way:
 - The cut must come from the quiz features alone. Including context (which can span the
   planet) erases the gap and un-splits Alaska.
-- Context shapes that straddle the cut meridian must be dropped, or Russia smears
-  horizontal stripes across a map of the United States.
+- Context shapes the cut meridian passes through must be split, not drawn as-is, or
+  Russia smears horizontal stripes across a map of the United States. They were
+  dropped at first, which quietly erased the US and Russia from a world-cities map
+  (the Pacific cut runs through both). `cutParts()` now unwraps such a ring and clips
+  one copy to each map edge, so the shape renders as two pieces.
 
 **Trap:** `featsBbox()` returns longitudes in *cut space*. That is correct for rendering
 and wrong for everything else. Passing it to Overpass once made the basemap fetch query

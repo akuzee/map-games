@@ -9,8 +9,10 @@
  *     pack: 'world-countries' | 'admin1/JPN' | 'us-counties/MA' |
  *           'us-townships/MA' | 'us-places/MA' | 'cities',
  *     scope?: { continent? | country? | counties?: [names] },
- *     select: { mode: 'all'|'topPop'|'minPop'|'group'|'capitals'|'manual',
- *               n?, min?, group?, ids?, names? },
+ *     select: { mode: 'all'|'top'|'minPop'|'group'|'capitals'|'manual',
+ *               n?, from?, min?, group?, ids?, names? },
+ *       // top: n targets starting at rank `from` (1-based, default 1) — so a
+ *       // player who knows the top 15 can drill 16–50
  *     context?: 'auto'          // point quizzes: draw country/continent under pins
  *   }
  */
@@ -67,8 +69,9 @@
         // population where we have it, prominence rank where we don't
         // (roads by length and class, landmarks by type + Wikipedia, etc.)
         const weight = (f) => f.pop ?? f.rank ?? null;
+        const from = Math.max(0, (s.from || 1) - 1);
         return features.filter((f) => weight(f) != null)
-          .sort((a, b) => weight(b) - weight(a)).slice(0, s.n || 20);
+          .sort((a, b) => weight(b) - weight(a)).slice(from, from + (s.n || 20));
       }
       case 'minPop':
         return features.filter((f) => (f.pop ?? 0) >= (s.min || 0));

@@ -149,7 +149,9 @@ Measured: full pack library is **258MB raw, 66MB gzipped**.
   mainland small. An inset transform (like d3's geoAlbersUsa) fixes it; applies to any
   far-flung-territory country (France's DOM, etc.).
 - **Type mode** — Seterra's second mode: the region highlights and you type its name.
-- **Pinch-to-zoom** — current zoom/pan is wheel + drag + buttons; two-pointer pinch not implemented.
+- **Wrap-around panning** — the map is a flat cut of the globe, so on a world-cities quiz
+  you can't pan west from the Americas across the Pacific to Asia. Would need the scene
+  drawn twice (or re-cut as the view moves) and the pan clamped to one copy. Low priority.
 - **Reveal-then-click** — Seterra makes you click the flashing revealed answer to continue
   (rehearsal effect); we auto-advance after a pause. Worth A/B-ing for learning value.
 - **Duplicate names in one quiz** — targets key on stable IDs now, but the *prompt* is a bare

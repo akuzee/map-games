@@ -144,9 +144,18 @@
         </div>
         <p id="b-detail-note" class="field-note"></p>
       </div>
-      <label id="b-n-wrap" hidden>How many (N)
-        <input id="b-n" type="number" min="2" max="500" value="20">
-      </label>
+      <div id="b-n-wrap" hidden>
+        <span class="field-label">Which ranks</span>
+        <div class="rank-range">
+          <label>From
+            <input id="b-from" type="number" min="1" max="500" value="1">
+          </label>
+          <label>To
+            <input id="b-to" type="number" min="2" max="500" value="20">
+          </label>
+        </div>
+        <p class="field-note">Rank 1 is the biggest. Already know the top 15? Start at 16.</p>
+      </div>
       <label id="b-min-wrap" hidden>Minimum population
         <input id="b-min" type="number" min="0" step="10000" value="100000">
       </label>

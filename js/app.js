@@ -35,10 +35,13 @@
   function describeConfig(cfg) {
     const packMeta = index.packs[cfg.pack];
     const s = cfg.select || { mode: 'all' };
+    const ranks = (s.from || 1) > 1
+      ? 'ranks ' + s.from + '–' + (s.from + (s.n || 20) - 1)
+      : 'top ' + (s.n || 20);
     const what = {
       all: 'all', independent: 'independent countries',
-      top: 'top ' + (s.n || 20),
-      topPop: 'top ' + (s.n || 20) + ' by population',
+      top: ranks,
+      topPop: ranks + ' by population',
       minPop: 'population ≥ ' + Number(s.min || 0).toLocaleString(),
       group: s.group + ' members', capitals: 'capitals',
       manual: (s.ids?.length || s.names?.length || 0) + ' hand-picked',
@@ -103,7 +106,7 @@
   // ---------- builder ----------
   const b = {
     cats: $('b-cats'), dataset: $('b-dataset'), scope: $('b-scope'), scopeLabel: $('b-scope-label'),
-    mode: $('b-mode'), n: $('b-n'), min: $('b-min'), group: $('b-group'),
+    mode: $('b-mode'), from: $('b-from'), to: $('b-to'), min: $('b-min'), group: $('b-group'),
     detail: $('b-detail'), detailWrap: $('b-detail-wrap'),
     detailNote: $('b-detail-note'), detailScale: document.querySelector('.detail-scale'),
     nWrap: $('b-n-wrap'), minWrap: $('b-min-wrap'), groupWrap: $('b-group-wrap'),
@@ -224,7 +227,7 @@
     b.dataset.addEventListener('change', refreshBuilder);
     b.scope.addEventListener('change', () => { refreshModes(true); });
     b.mode.addEventListener('change', () => refreshFilterInputs());
-    for (const input of [b.n, b.min, b.group]) {
+    for (const input of [b.from, b.to, b.min, b.group]) {
       input.addEventListener('change', updatePreview);
     }
     b.detail.addEventListener('input', () => { markDetailScale(); updatePreview(); });
@@ -350,7 +353,11 @@
       // for it, and the saved config stays self-describing
       if (level !== 'all') select.n = (ds.detail || { quick: 10, standard: 30 })[level];
     }
-    if (mode === 'top') select.n = Math.max(2, +b.n.value || 20);
+    if (mode === 'top') {
+      const [from, to] = rankRange();
+      select.n = to - from + 1;
+      if (from > 1) select.from = from;
+    }
     if (mode === 'minPop') select.min = +b.min.value || 0;
     if (mode === 'group') select.group = b.group.value;
     if (mode === 'manual') {
@@ -359,6 +366,13 @@
     const cfg = { title: b.title.value.trim() || suggestTitle(), pack, select };
     if (scope) cfg.scope = scope;
     return cfg;
+  }
+
+  // the builder's rank inputs as [from, to], forgiving of half-typed values
+  function rankRange() {
+    const from = Math.max(1, Math.floor(+b.from.value) || 1);
+    const to = Math.max(from + 1, Math.floor(+b.to.value) || 20);
+    return [from, to];
   }
 
   function suggestTitle() {
@@ -376,8 +390,10 @@
       return (scopeLabel ? scopeLabel + ' — ' : '') + ds.label;
     }
     if (mode === 'top') {
-      return (scopeLabel ? scopeLabel + ': ' : '') + 'top ' + (+b.n.value || 20) +
-        ' ' + ds.label.toLowerCase();
+      const [from, to] = rankRange();
+      const noun = ds.label.toLowerCase();
+      return (scopeLabel ? scopeLabel + ': ' : '') +
+        (from > 1 ? noun + ' ranked ' + from + '–' + to : 'top ' + to + ' ' + noun);
     }
     if (mode === 'group') return b.group.value + ' members';
     if (mode === 'capitals') return 'Capitals — ' + (scopeLabel || 'World');
